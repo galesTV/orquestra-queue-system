@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Establishment {
+  id           String        @id @default(uuid())
+  name         String
+  appointments Appointment[]
+  waitingQueue WaitingQueue[]
+}
+
+model Appointment {
+  id              String           @id @default(uuid())
+  startTime       DateTime
+  status          AppointmentStatus @default(SCHEDULED)
+  customerId      String
+  establishmentId String
+  establishment   Establishment    @relation(fields: [establishmentId], references: [id])
+}
+
+model WaitingQueue {
+  id              String        @id @default(uuid())
+  position        Int
+  joinedAt        DateTime      @default(now())
+  customerId      String
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  
+  @@unique([establishmentId, position])
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CANCELED
+  COMPLETED
+  WAITING_CONFIRMATION
+}
