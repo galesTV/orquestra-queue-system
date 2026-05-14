@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
-import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 
 @Injectable()
 export class AppointmentsService {
@@ -33,6 +33,19 @@ export class AppointmentsService {
   async remove(id: string) {
     return await this.prisma.appointment.delete({
       where: { id },
+    });
+  }
+
+  async update(id: string, updateAppointmentDto: UpdateAppointmentDto) {
+    return await this.prisma.appointment.update({
+      where: { id },
+      data: {
+        ...(updateAppointmentDto.startTime && {
+          startTime: new Date(updateAppointmentDto.startTime),
+        }),
+        customerId: updateAppointmentDto.customerId,
+        establishmentId: updateAppointmentDto.establishmentId,
+      },
     });
   }
 }

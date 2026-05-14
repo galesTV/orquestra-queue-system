@@ -15,7 +15,7 @@ export class PrismaService
     const connectionString = process.env.DATABASE_URL;
 
     if (!connectionString) {
-      throw new Error('❌ DATABASE_URL não encontrada no arquivo .env');
+      throw new Error('❌ DATABASE_URL not found in .env');
     }
 
     const pool = new Pool({ connectionString: connectionString });
@@ -27,9 +27,8 @@ export class PrismaService
   async onModuleInit() {
     try {
       await this.$connect();
-      console.log('✅ Conexão com o banco de dados estabelecida com sucesso.');
     } catch (error) {
-      console.error('❌ Erro ao conectar no banco de dados:', error);
+      console.error('❌ Error connecting to the database:', error);
     }
   }
 
