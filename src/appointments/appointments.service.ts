@@ -1,11 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue('appointment-queue') private readonly appointmentQueue: Queue,
+  ) {}
 
   async create(createAppointmentDto: CreateAppointmentDto) {
     return await this.prisma.appointment.create({
@@ -47,5 +52,25 @@ export class AppointmentsService {
         establishmentId: updateAppointmentDto.establishmentId,
       },
     });
+  }
+
+  async cancel(id: string) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id },
+    });
+
+    if (!appointment) throw new NotFoundException('Agendamento não encontrado');
+
+    const updatedAppointment = await this.prisma.appointment.update({
+      where: { id },
+      data: { status: 'CANCELED' },
+    });
+
+    await this.appointmentQueue.add('process-cancellation', {
+      appointmentId: appointment.id,
+      establishmentId: appointment.establishmentId,
+    });
+
+    return updatedAppointment;
   }
 }
