@@ -1,5 +1,7 @@
 # Orquestra Queue System
 
+English: [README.md](./README.md)
+
 Orquestra é um ecossistema de micro-gerenciamento de agendamentos e filas de espera assíncronas. O projeto demonstra a integração entre serviços de agendamento em tempo real, persistência relacional e orquestração de eventos distribuídos para resolver o problema de ociosidade em estabelecimentos após cancelamentos.
 
 ## Visão Geral
