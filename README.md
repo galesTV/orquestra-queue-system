@@ -1,5 +1,7 @@
 # Orquestra Queue System
 
+Portuguese: [README.pt-BR.md](./README.pt-BR.md)
+
 Orquestra is a micro-management ecosystem for appointments and asynchronous waiting queues. The project demonstrates the integration between real-time scheduling services, relational persistence, and distributed event orchestration to solve business idleness after cancellations.
 
 ## Overview
