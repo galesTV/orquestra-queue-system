@@ -31,7 +31,7 @@ export class AppointmentsService {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id },
     });
-    if (!appointment) throw new NotFoundException('Agendamento não encontrado');
+    if (!appointment) throw new NotFoundException('Appointment not found');
     return appointment;
   }
 
@@ -59,7 +59,7 @@ export class AppointmentsService {
       where: { id },
     });
 
-    if (!appointment) throw new NotFoundException('Agendamento não encontrado');
+    if (!appointment) throw new NotFoundException('Appointment not found');
 
     const updatedAppointment = await this.prisma.appointment.update({
       where: { id },

@@ -45,11 +45,22 @@ export class AppointmentsProcessor extends WorkerHost {
       return;
     }
 
-    this.logger.log(
-      `🎉 Next client found! Client ID: ${nextInQueue.customerId}`,
-    );
+    await this.prisma.$transaction([
+      this.prisma.appointment.create({
+        data: {
+          startTime: new Date(),
+          customerId: nextInQueue.customerId,
+          establishmentId: nextInQueue.establishmentId,
+          status: 'WAITING_CONFIRMATION',
+        },
+      }),
+      this.prisma.waitingQueue.delete({
+        where: { id: nextInQueue.id },
+      }),
+    ]);
 
-    // TODO: Here implement the logic to notify the next client and update the appointment status,
-    // for example, by sending an email or a push notification.
+    this.logger.log(
+      `✅ Client ${nextInQueue.customerId} promoted successfully!`,
+    );
   }
 }

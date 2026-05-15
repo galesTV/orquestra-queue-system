@@ -42,4 +42,9 @@ export class AppointmentsController {
   remove(@Param('id') id: string) {
     return this.appointmentsService.remove(id);
   }
+
+  @Patch(':id/cancel')
+  async cancel(@Param('id') id: string) {
+    return await this.appointmentsService.cancel(id);
+  }
 }
