@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -20,6 +21,7 @@ dotenv.config();
       },
     }),
     AppointmentsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}
