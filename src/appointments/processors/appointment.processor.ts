@@ -1,5 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { Job } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -7,7 +9,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class AppointmentsProcessor extends WorkerHost {
   private readonly logger = new Logger(AppointmentsProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue('notification-queue')
+    private readonly notificationQueue: Queue,
+  ) {
     super();
   }
 
@@ -62,5 +68,10 @@ export class AppointmentsProcessor extends WorkerHost {
     this.logger.log(
       `✅ Client ${nextInQueue.customerId} promoted successfully!`,
     );
+
+    await this.notificationQueue.add('send-promotion-alert', {
+      customerId: nextInQueue.customerId,
+      establishmentId: nextInQueue.establishmentId,
+    });
   }
 }
