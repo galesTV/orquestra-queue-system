@@ -1,9 +1,18 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
-import { Job } from 'bullmq';
+import { Queue, Job } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
+
+// Interface definitions for job data
+interface CancellationJobData {
+  appointmentId: string;
+  establishmentId: string;
+}
+
+interface ExpirationJobData {
+  customerId: string;
+  establishmentId: string;
+}
 
 @Processor('appointment-queue')
 export class AppointmentsProcessor extends WorkerHost {
@@ -13,6 +22,8 @@ export class AppointmentsProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     @InjectQueue('notification-queue')
     private readonly notificationQueue: Queue,
+    @InjectQueue('appointment-queue')
+    private readonly appointmentQueue: Queue,
   ) {
     super();
   }
@@ -22,7 +33,11 @@ export class AppointmentsProcessor extends WorkerHost {
 
     switch (job.name) {
       case 'process-cancellation':
-        await this.handleCancellation(job.data);
+        await this.handleCancellation(job as Job<CancellationJobData>);
+        break;
+
+      case 'check-expiration':
+        await this.handleExpiration(job as Job<ExpirationJobData>);
         break;
 
       default:
@@ -30,11 +45,8 @@ export class AppointmentsProcessor extends WorkerHost {
     }
   }
 
-  private async handleCancellation(data: {
-    appointmentId: string;
-    establishmentId: string;
-  }) {
-    const { appointmentId, establishmentId } = data;
+  private async handleCancellation(job: Job<CancellationJobData>) {
+    const { establishmentId } = job.data;
     this.logger.log(
       `🔄 Orchestrating queue for the establishment: ${establishmentId}`,
     );
@@ -72,6 +84,58 @@ export class AppointmentsProcessor extends WorkerHost {
     await this.notificationQueue.add('send-promotion-alert', {
       customerId: nextInQueue.customerId,
       establishmentId: nextInQueue.establishmentId,
+    });
+
+    await this.appointmentQueue.add(
+      'check-expiration',
+      {
+        customerId: nextInQueue.customerId,
+        establishmentId: nextInQueue.establishmentId,
+      },
+      {
+        delay: 10 * 60 * 1000, // 10 minutes in milliseconds
+      },
+    );
+  }
+
+  private async handleExpiration(job: Job<ExpirationJobData>) {
+    const { customerId, establishmentId } = job.data;
+
+    this.logger.log(
+      `⏳ Checking expiration for customer ${customerId} at establishment ${establishmentId}`,
+    );
+
+    // Search for an appointment that is still waiting for confirmation for this customer and establishment
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        customerId,
+        establishmentId,
+        status: 'WAITING_CONFIRMATION',
+      },
+    });
+
+    // If no appointment is found, it means the client already confirmed or the appointment was canceled by another process. In both cases, we can just log and exit.
+    if (!appointment) {
+      this.logger.log(
+        `✨ Client ${customerId} already confirmed or appointment state changed. No action needed.`,
+      );
+      return;
+    }
+
+    this.logger.warn(
+      `🚨 Time's up! Client ${customerId} failed to confirm. Expiring appointment...`,
+    );
+
+    // If the appointment is still waiting for confirmation, we cancel it
+    await this.prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { status: 'CANCELED' },
+    });
+
+    // After canceling the appointment, we can trigger the cancellation workflow to promote the next client in the waiting queue
+    await this.appointmentQueue.add('process-cancellation', {
+      appointmentId: appointment.id,
+      establishmentId: appointment.establishmentId,
     });
   }
 }
