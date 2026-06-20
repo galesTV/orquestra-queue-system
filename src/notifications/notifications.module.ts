@@ -7,6 +7,10 @@ import { NotificationProcessor } from './processors/notification.processor';
   imports: [
     BullModule.registerQueue({
       name: 'notification-queue',
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      },
     }),
   ],
   providers: [NotificationsService, NotificationProcessor],

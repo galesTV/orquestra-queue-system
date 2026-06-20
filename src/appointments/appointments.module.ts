@@ -9,6 +9,10 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
   imports: [
     BullModule.registerQueue({
       name: 'appointment-queue',
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      },
     }),
     NotificationsModule,
   ],
