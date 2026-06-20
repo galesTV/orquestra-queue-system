@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
@@ -72,5 +76,24 @@ export class AppointmentsService {
     });
 
     return updatedAppointment;
+  }
+
+  async confirm(id: string) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id },
+    });
+
+    if (!appointment) throw new NotFoundException('Appointment not found');
+
+    if (appointment.status !== 'WAITING_CONFIRMATION') {
+      throw new BadRequestException(
+        'Appointment is not waiting for confirmation',
+      );
+    }
+
+    return await this.prisma.appointment.update({
+      where: { id },
+      data: { status: 'SCHEDULED' },
+    });
   }
 }

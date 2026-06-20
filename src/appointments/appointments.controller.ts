@@ -38,6 +38,11 @@ export class AppointmentsController {
     return this.appointmentsService.update(id, updateAppointmentDto);
   }
 
+  @Patch(':id/confirm')
+  async confirm(@Param('id') id: string) {
+    return await this.appointmentsService.confirm(id);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.appointmentsService.remove(id);
