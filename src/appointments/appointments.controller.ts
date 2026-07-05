@@ -52,4 +52,14 @@ export class AppointmentsController {
   async cancel(@Param('id') id: string) {
     return await this.appointmentsService.cancel(id);
   }
+
+  @Get('queue/position/:customerId')
+  async getCustomerPosition(@Param('customerId') customerId: string) {
+    return this.appointmentsService.getCustomerPosition(customerId);
+  }
+
+  @Get('establishment/:establishmentId/queue-size')
+  async getQueueSize(@Param('establishmentId') establishmentId: string) {
+    return this.appointmentsService.getQueueSize(establishmentId);
+  }
 }
