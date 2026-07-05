@@ -96,4 +96,61 @@ export class AppointmentsService {
       data: { status: 'SCHEDULED' },
     });
   }
+
+  async getCustomerPosition(customerId: string) {
+    // Check if the customer is in the waiting queue
+    const queueEntry = await this.prisma.waitingQueue.findFirst({
+      where: { customerId },
+      include: { establishment: true },
+    });
+
+    if (!queueEntry) {
+      const activeAppointment = await this.prisma.appointment.findFirst({
+        where: { customerId, status: 'WAITING_CONFIRMATION' },
+      });
+
+      if (activeAppointment) {
+        return {
+          customerId,
+          inQueue: false,
+          status: 'SCHEDULED',
+          message:
+            'You have an appointment waiting for confirmation. Please confirm it to secure your spot.',
+        };
+      }
+
+      throw new NotFoundException(
+        'Customer not found in any active waiting queue.',
+      );
+    }
+
+    return {
+      customerId,
+      inQueue: true,
+      status: 'WAITING_CONFIRMATION',
+      position: queueEntry.position,
+      establishment: {
+        id: queueEntry.establishmentId,
+        name: queueEntry.establishment.name,
+      },
+      joinedAt: queueEntry.joinedAt,
+    };
+  }
+
+  async getQueueSize(establishmentId: string) {
+    const size = await this.prisma.waitingQueue.count({
+      where: { establishmentId },
+    });
+
+    const sampleEntry = await this.prisma.waitingQueue.findFirst({
+      where: { establishmentId },
+      include: { establishment: true },
+    });
+
+    return {
+      establishmentId,
+      establishmentName: sampleEntry?.establishment.name || ' ',
+      totalWaiting: size,
+    };
+  }
 }
