@@ -78,9 +78,12 @@ export class AppointmentsService {
     return updatedAppointment;
   }
 
-  async confirm(id: string) {
-    const appointment = await this.prisma.appointment.findUnique({
-      where: { id },
+  async confirm(customerId: string) {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        customerId: customerId,
+        status: 'WAITING_CONFIRMATION',
+      },
     });
 
     if (!appointment) throw new NotFoundException('Appointment not found');
@@ -92,7 +95,7 @@ export class AppointmentsService {
     }
 
     return await this.prisma.appointment.update({
-      where: { id },
+      where: { id: appointment.id },
       data: { status: 'SCHEDULED' },
     });
   }
@@ -104,37 +107,42 @@ export class AppointmentsService {
       include: { establishment: true },
     });
 
-    if (!queueEntry) {
-      const activeAppointment = await this.prisma.appointment.findFirst({
-        where: { customerId, status: 'WAITING_CONFIRMATION' },
-      });
-
-      if (activeAppointment) {
-        return {
-          customerId,
-          inQueue: false,
-          status: 'SCHEDULED',
-          message:
-            'You have an appointment waiting for confirmation. Please confirm it to secure your spot.',
-        };
-      }
-
-      throw new NotFoundException(
-        'Customer not found in any active waiting queue.',
-      );
+    if (queueEntry) {
+      return {
+        customerId,
+        inQueue: true,
+        status: 'WAITING',
+        position: queueEntry.position,
+        establishment: {
+          id: queueEntry.establishmentId,
+          name: queueEntry.establishment.name,
+        },
+        joinedAt: queueEntry.joinedAt,
+      };
     }
 
-    return {
-      customerId,
-      inQueue: true,
-      status: 'WAITING_CONFIRMATION',
-      position: queueEntry.position,
-      establishment: {
-        id: queueEntry.establishmentId,
-        name: queueEntry.establishment.name,
-      },
-      joinedAt: queueEntry.joinedAt,
-    };
+    // If
+    const activeAppointment = await this.prisma.appointment.findFirst({
+      where: { customerId, status: 'WAITING_CONFIRMATION' },
+      include: { establishment: true },
+    });
+
+    if (activeAppointment) {
+      return {
+        customerId,
+        inQueue: false,
+        status: 'PROMOTED',
+        message: '',
+        establishment: {
+          id: activeAppointment.establishmentId,
+          name: activeAppointment.establishment.name,
+        },
+      };
+    }
+
+    throw new NotFoundException(
+      'Customer not found in any active waiting queue.',
+    );
   }
 
   async getQueueSize(establishmentId: string) {
