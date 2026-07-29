@@ -9,7 +9,16 @@ interface PromotionAlertData {
   establishmentId: string;
 }
 
-@Processor('notification-queue')
+@Processor('notification-queue', {
+  connection: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+  },
+  limiter: {
+    max: 2,
+    duration: 5000, // 5 seconds
+  },
+})
 export class NotificationProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationProcessor.name);
   private readonly transporter: nodemailer.Transporter;

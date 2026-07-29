@@ -4,20 +4,23 @@ import { AppointmentsService } from './appointments.service';
 import { AppointmentsController } from './appointments.controller';
 import { AppointmentsProcessor } from './processors/appointment.processor';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { QueueGateway } from './gateways/queue.gateway';
 
 @Module({
   imports: [
-    BullModule.registerQueue({
+    BullModule.registerQueueAsync({
       name: 'appointment-queue',
-      connection: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
-      },
+      useFactory: () => ({
+        connection: {
+          host: process.env.REDIS_HOST || 'localhost',
+          port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        },
+      }),
     }),
     NotificationsModule,
   ],
   controllers: [AppointmentsController],
-  providers: [AppointmentsService, AppointmentsProcessor],
-  exports: [AppointmentsService],
+  providers: [AppointmentsService, AppointmentsProcessor, QueueGateway],
+  exports: [AppointmentsService, QueueGateway],
 })
 export class AppointmentsModule {}
