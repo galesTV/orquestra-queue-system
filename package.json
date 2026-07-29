@@ -26,6 +26,8 @@
     "@nestjs/core": "^11.1.27",
     "@nestjs/mapped-types": "*",
     "@nestjs/platform-express": "^11.1.27",
+    "@nestjs/platform-socket.io": "^11.1.27",
+    "@nestjs/websockets": "^11.1.27",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "bullmq": "^5.76.8",
