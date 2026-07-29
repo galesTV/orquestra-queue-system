@@ -2,6 +2,7 @@ import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Queue, Job } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
+import { QueueGateway } from '../gateways/queue.gateway';
 
 // Interface definitions for job data
 interface CancellationJobData {
@@ -14,7 +15,12 @@ interface ExpirationJobData {
   establishmentId: string;
 }
 
-@Processor('appointment-queue')
+@Processor('appointment-queue', {
+  connection: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+  },
+})
 export class AppointmentsProcessor extends WorkerHost {
   private readonly logger = new Logger(AppointmentsProcessor.name);
 
@@ -24,8 +30,12 @@ export class AppointmentsProcessor extends WorkerHost {
     private readonly notificationQueue: Queue,
     @InjectQueue('appointment-queue')
     private readonly appointmentQueue: Queue,
+    private readonly queueGateway: QueueGateway,
   ) {
     super();
+    this.logger.log(
+      'AppointmentsProcessor initialized and ready to process jobs.',
+    );
   }
 
   async process(job: Job<any, any, string>): Promise<any> {
@@ -81,10 +91,31 @@ export class AppointmentsProcessor extends WorkerHost {
       `✅ Client ${nextInQueue.customerId} promoted successfully!`,
     );
 
-    await this.notificationQueue.add('send-promotion-alert', {
+    this.queueGateway.emitQueueUpdate(nextInQueue.customerId, {
       customerId: nextInQueue.customerId,
-      establishmentId: nextInQueue.establishmentId,
+      inQueue: false,
+      status: 'PROMOTED',
+      message:
+        'You have been promoted to an appointment. Please confirm within 10 minutes.',
+      establishment: { id: nextInQueue.establishmentId },
     });
+
+    await this.notificationQueue.add(
+      'send-promotion-alert',
+      {
+        customerId: nextInQueue.customerId,
+        establishmentId: nextInQueue.establishmentId,
+      },
+      {
+        attempts: 3, // Retry the job up to 3 times in case of failure
+        backoff: {
+          type: 'exponential',
+          delay: 2000, // 2 seconds
+        },
+      },
+    );
+
+    const CONFIRMATION_TIMEOUT_MS = 10 * 1000;
 
     await this.appointmentQueue.add(
       'check-expiration',
@@ -93,7 +124,7 @@ export class AppointmentsProcessor extends WorkerHost {
         establishmentId: nextInQueue.establishmentId,
       },
       {
-        delay: 10 * 60 * 1000, // 10 minutes in milliseconds
+        delay: CONFIRMATION_TIMEOUT_MS,
       },
     );
   }
@@ -130,6 +161,13 @@ export class AppointmentsProcessor extends WorkerHost {
     await this.prisma.appointment.update({
       where: { id: appointment.id },
       data: { status: 'CANCELED' },
+    });
+
+    this.queueGateway.emitQueueUpdate(customerId, {
+      customerId,
+      inQueue: false,
+      status: 'CANCELED',
+      message: 'Your appointment has been canceled due to no confirmation.',
     });
 
     // After canceling the appointment, we can trigger the cancellation workflow to promote the next client in the waiting queue

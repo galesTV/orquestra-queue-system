@@ -17,14 +17,78 @@ export class AppointmentsService {
   ) {}
 
   async create(createAppointmentDto: CreateAppointmentDto) {
-    return await this.prisma.appointment.create({
-      data: {
-        startTime: new Date(createAppointmentDto.startTime),
-        customerId: createAppointmentDto.customerId,
-        establishmentId: createAppointmentDto.establishmentId,
-        status: 'SCHEDULED',
+    const { customerId, establishmentId, startTime } = createAppointmentDto;
+
+    const activeAppointment = await this.prisma.appointment.findFirst({
+      where: {
+        establishmentId,
+        status: {
+          in: ['SCHEDULED', 'WAITING_CONFIRMATION'],
+        },
       },
     });
+
+    if (activeAppointment) {
+      const lastInQueue = await this.prisma.waitingQueue.findFirst({
+        where: { establishmentId },
+        orderBy: { position: 'desc' },
+      });
+
+      const nextPosition = lastInQueue ? lastInQueue.position + 1 : 1;
+
+      const queueEntry = await this.prisma.waitingQueue.create({
+        data: {
+          customerId,
+          establishmentId,
+          position: nextPosition,
+        },
+        include: { establishment: true },
+      });
+
+      return {
+        customerId,
+        inQueue: true,
+        status: 'WAITING',
+        position: queueEntry.position,
+        establishment: {
+          id: queueEntry.establishmentId,
+          name: queueEntry.establishment.name,
+        },
+        message: `The establishment is currently busy. You have been added to the waiting queue.`,
+      };
+    }
+
+    const newAppointment = await this.prisma.appointment.create({
+      data: {
+        startTime: new Date(startTime),
+        customerId,
+        establishmentId,
+        status: 'WAITING_CONFIRMATION',
+      },
+      include: { establishment: true },
+    });
+
+    await this.appointmentQueue.add(
+      'check-expiration',
+      {
+        appointmentId: newAppointment.id,
+        establishmentId: newAppointment.establishmentId,
+        customerId: newAppointment.customerId,
+      },
+      { delay: 10 * 1000 },
+    ); // Exemplo: 10 segundos em milissegundos
+
+    return {
+      customerId,
+      inQueue: false,
+      status: 'WAITING_CONFIRMATION',
+      appointmentId: newAppointment.id,
+      establishment: {
+        id: newAppointment.establishmentId,
+        name: newAppointment.establishment.name,
+      },
+      message: `You have an appointment scheduled. Please confirm within 10 minutes.`,
+    };
   }
 
   async findAll() {
@@ -81,7 +145,7 @@ export class AppointmentsService {
   async confirm(customerId: string) {
     const appointment = await this.prisma.appointment.findFirst({
       where: {
-        customerId: customerId,
+        customerId,
         status: 'WAITING_CONFIRMATION',
       },
     });
@@ -121,7 +185,7 @@ export class AppointmentsService {
       };
     }
 
-    // If
+    // If not in the waiting queue, check if the customer has an active appointment
     const activeAppointment = await this.prisma.appointment.findFirst({
       where: { customerId, status: 'WAITING_CONFIRMATION' },
       include: { establishment: true },
@@ -136,6 +200,27 @@ export class AppointmentsService {
         establishment: {
           id: activeAppointment.establishmentId,
           name: activeAppointment.establishment.name,
+        },
+      };
+    }
+
+    // If not in the waiting queue or active appointment, check if the customer has a canceled appointment
+    const canceledAppointment = await this.prisma.appointment.findFirst({
+      where: { customerId, status: 'CANCELED' },
+      orderBy: { startTime: 'desc' },
+      include: { establishment: true },
+    });
+
+    if (canceledAppointment) {
+      return {
+        customerId,
+        inQueue: false,
+        status: 'CANCELED',
+        message:
+          'Your 10-minute confirmation period has expired, and your spot has been released.',
+        establishment: {
+          id: canceledAppointment.establishmentId,
+          name: canceledAppointment.establishment.name,
         },
       };
     }
