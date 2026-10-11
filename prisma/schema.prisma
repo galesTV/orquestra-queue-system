@@ -11,6 +11,16 @@ model Establishment {
   name         String
   appointments Appointment[]
   waitingQueue WaitingQueue[]
+  appointmentSlots AppointmentSlot[]
+}
+
+model AppointmentSlot {
+  id              String        @id @default(uuid())
+  startTime       DateTime
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([establishmentId, startTime])
 }
 
 model Appointment {
