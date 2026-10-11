@@ -11,15 +11,25 @@ model Establishment {
   name         String
   appointments Appointment[]
   waitingQueue WaitingQueue[]
+  appointmentSlots AppointmentSlot[]
+}
+
+model AppointmentSlot {
+  id              String        @id @default(uuid())
+  startTime       DateTime
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([establishmentId, startTime])
 }
 
 model Appointment {
-  id              String           @id @default(uuid())
+  id              String            @id @default(uuid())
   startTime       DateTime
   status          AppointmentStatus @default(SCHEDULED)
   customerId      String
   establishmentId String
-  establishment   Establishment    @relation(fields: [establishmentId], references: [id])
+  establishment   Establishment     @relation(fields: [establishmentId], references: [id])
 }
 
 model WaitingQueue {
@@ -28,9 +38,10 @@ model WaitingQueue {
   joinedAt        DateTime      @default(now())
   customerId      String
   establishmentId String
+  startTime       DateTime
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
-  
-  @@unique([establishmentId, position])
+
+  @@unique([establishmentId, startTime, position])
 }
 
 enum AppointmentStatus {

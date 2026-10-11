@@ -55,11 +55,25 @@ flowchart TD
 
 ## API Endpoints
 A API expõe os seguintes endpoints para a gestão de agendamentos e filas:
+### Catálogo de horários
+| Método | Endpoint | Descrição |
+| :--- | :--- | :--- |
+| `POST` | `/appointment-slots` | Adiciona um horário predefinido ao catálogo de um estabelecimento. |
+| `GET` | `/appointment-slots/establishment/:establishmentId` | Lista os horários configurados em ordem cronológica. |
+
+Cadastre o horário antes de aceitar agendamentos nele:
+```json
+{
+  "establishmentId": "b2c3d4e5-f6a7-4890-9234-23456789abcd",
+  "startTime": "2026-10-15T14:30:00.000Z"
+}
+```
+
 ### Agendamentos (Appointments)
 | Método | Endpoint | Descrição |
 | :--- | :--- | :--- |
-| `POST` | `/appointments` | Cria um novo agendamento. |
-| `PATCH` | `/appointments/:id/cancel` | Cancela um agendamento e dispara o processamento da fila de espera. |
+| `POST` | `/appointments` | Cria um agendamento ou adiciona o cliente à fila daquele horário se estiver ocupado. O horário solicitado precisa existir no catálogo. |
+| `PATCH` | `/appointments/:id/cancel` | Cancela um agendamento e dispara o processamento da fila daquele horário. |
 
 ## Início Rápido
 ```bash
