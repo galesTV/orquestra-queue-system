@@ -185,6 +185,67 @@ describe('AppointmentSlotsService', () => {
     );
   });
 
+  it('deactivates and reactivates a slot under the slot lock', async () => {
+    const inactiveSlot = { ...slot, isActive: false };
+    tx.appointmentSlot.findUnique
+      .mockResolvedValueOnce(slot)
+      .mockResolvedValueOnce(slot);
+    tx.appointmentSlot.update.mockResolvedValueOnce(inactiveSlot);
+
+    const deactivated = await service.setActive('slot-1', false);
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.appointmentSlot.update).toHaveBeenCalledWith({
+      where: { id: 'slot-1' },
+      data: { isActive: false },
+    });
+    expect(deactivated.isActive).toBe(false);
+
+    tx.appointmentSlot.findUnique
+      .mockResolvedValueOnce(inactiveSlot)
+      .mockResolvedValueOnce(inactiveSlot);
+    tx.appointmentSlot.update.mockResolvedValueOnce(slot);
+
+    const reactivated = await service.setActive('slot-1', true);
+    expect(tx.appointmentSlot.update).toHaveBeenLastCalledWith({
+      where: { id: 'slot-1' },
+      data: { isActive: true },
+    });
+    expect(reactivated.isActive).toBe(true);
+  });
+
+  it('rejects deactivating a slot with an active appointment', async () => {
+    tx.appointmentSlot.findUnique
+      .mockResolvedValueOnce(slot)
+      .mockResolvedValueOnce(slot);
+    tx.appointment.findFirst.mockResolvedValueOnce({ id: 'active-appointment' });
+
+    await expect(service.setActive('slot-1', false)).rejects.toThrow(
+      'This slot cannot be changed while it has an active appointment.',
+    );
+    expect(tx.appointmentSlot.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects deactivating a slot with waiting customers', async () => {
+    tx.appointmentSlot.findUnique
+      .mockResolvedValueOnce(slot)
+      .mockResolvedValueOnce(slot);
+    tx.waitingQueue.findFirst.mockResolvedValueOnce({ id: 'queue-entry' });
+
+    await expect(service.setActive('slot-1', false)).rejects.toThrow(
+      'This slot cannot be changed while customers are in its waiting queue.',
+    );
+    expect(tx.appointmentSlot.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects changing activation for a nonexistent slot', async () => {
+    tx.appointmentSlot.findUnique.mockResolvedValueOnce(null);
+
+    await expect(service.setActive('missing-slot', false)).rejects.toThrow(
+      'Appointment slot not found',
+    );
+  });
+
   it('deletes a slot only when no active appointments or queue entries depend on it', async () => {
     tx.appointmentSlot.findUnique
       .mockResolvedValueOnce(slot)
