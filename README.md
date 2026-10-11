@@ -60,8 +60,10 @@ The API exposes the following endpoints for managing appointments and queues:
 | :--- | :--- | :--- |
 | `POST` | `/appointment-slots` | Adds a predefined slot to an establishment catalog. |
 | `GET` | `/appointment-slots/establishment/:establishmentId` | Lists configured slots in chronological order. |
+| `PATCH` | `/appointment-slots/:id` | Changes a slot's start time when no active appointment or waiting queue depends on it. |
+| `DELETE` | `/appointment-slots/:id` | Removes a slot when no active appointment or waiting queue depends on it. |
 
-Create a slot before accepting bookings for that time:
+Create a slot before accepting bookings for that time. Updating a slot only changes its start time. The API rejects changes or deletion if the slot has an active appointment or waiting customers:
 ```json
 {
   "establishmentId": "b2c3d4e5-f6a7-4890-9234-23456789abcd",
