@@ -34,7 +34,7 @@ describe('AppointmentsService slot integrity', () => {
       },
       waitingQueue: {
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({ id: 'queue-1', position: 1 }),
+        create: jest.fn().mockImplementation(({ data }: { data: { position: number } }) => Promise.resolve({ id: 'queue-1', position: data.position })),
       },
     };
 
@@ -68,7 +68,7 @@ describe('AppointmentsService slot integrity', () => {
         position: 3,
       },
     });
-    expect(result).toMatchObject({ inQueue: true, position: 1 });
+    expect(result).toMatchObject({ inQueue: true, position: 3 });
     expect(tx.appointment.create).not.toHaveBeenCalled();
   });
 
