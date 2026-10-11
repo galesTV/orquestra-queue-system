@@ -60,8 +60,10 @@ A API expõe os seguintes endpoints para a gestão de agendamentos e filas:
 | :--- | :--- | :--- |
 | `POST` | `/appointment-slots` | Adiciona um horário predefinido ao catálogo de um estabelecimento. |
 | `GET` | `/appointment-slots/establishment/:establishmentId` | Lista os horários configurados em ordem cronológica. |
+| `PATCH` | `/appointment-slots/:id` | Altera o horário inicial se não houver agendamento ativo ou fila dependente dele. |
+| `DELETE` | `/appointment-slots/:id` | Remove o horário se não houver agendamento ativo ou clientes na fila. |
 
-Cadastre o horário antes de aceitar agendamentos nele:
+Cadastre o horário antes de aceitar agendamentos nele. A edição altera apenas o horário inicial. A API rejeita edição ou remoção quando existem agendamentos ativos ou clientes aguardando:
 ```json
 {
   "establishmentId": "b2c3d4e5-f6a7-4890-9234-23456789abcd",
