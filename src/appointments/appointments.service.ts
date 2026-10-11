@@ -175,7 +175,7 @@ export class AppointmentsService {
     const targetEstablishmentId =
       updateAppointmentDto.establishmentId ?? current.establishmentId;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const locks = [
         { establishmentId: current.establishmentId, startTime: current.startTime },
         { establishmentId: targetEstablishmentId, startTime: targetStartTime },
