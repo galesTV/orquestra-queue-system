@@ -30,7 +30,7 @@ model WaitingQueue {
   establishmentId String
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
   
-  @@unique([establishmentId, position])
+  startTime       DateTime?     // Null only for legacy queue entries awaiting manual slot assignment.\n\n  @@unique([establishmentId, startTime, position])
 }
 
 enum AppointmentStatus {
