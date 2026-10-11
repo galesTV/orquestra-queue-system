@@ -36,6 +36,17 @@ export class AppointmentsService {
         throw new NotFoundException('Establishment not found');
       }
 
+      const configuredSlot = await tx.appointmentSlot.findUnique({
+        where: {
+          establishmentId_startTime: { establishmentId, startTime },
+        },
+      });
+      if (!configuredSlot) {
+        throw new BadRequestException(
+          'The requested time is not configured as an available slot for this establishment.',
+        );
+      }
+
       const existingAppointment = await tx.appointment.findFirst({
         where: {
           establishmentId,
@@ -209,6 +220,26 @@ export class AppointmentsService {
         throw new ConflictException('Appointment changed concurrently. Reload it and retry.');
       }
 
+      const targetSlotChanged =
+        targetEstablishmentId !== current.establishmentId ||
+        targetStartTime.getTime() !== current.startTime.getTime();
+
+      if (targetSlotChanged) {
+        const configuredSlot = await tx.appointmentSlot.findUnique({
+          where: {
+            establishmentId_startTime: {
+              establishmentId: targetEstablishmentId,
+              startTime: targetStartTime,
+            },
+          },
+        });
+        if (!configuredSlot) {
+          throw new BadRequestException(
+            'The requested time is not configured as an available slot for this establishment.',
+          );
+        }
+      }
+
       const conflict = await tx.appointment.findFirst({
         where: {
           id: { not: id },
@@ -220,9 +251,6 @@ export class AppointmentsService {
       const queuedAhead = await tx.waitingQueue.findFirst({
         where: { establishmentId: targetEstablishmentId, startTime: targetStartTime },
       });
-      const targetSlotChanged =
-        targetEstablishmentId !== current.establishmentId ||
-        targetStartTime.getTime() !== current.startTime.getTime();
       if (conflict || (targetSlotChanged && queuedAhead)) {
         throw new ConflictException(
           'The requested time slot is occupied or has a waiting list. Create a waitlist entry instead of moving this appointment.',
