@@ -165,18 +165,16 @@ export class AppointmentsProcessor extends WorkerHost {
 
   private async handleExpiration(job: Job<ExpirationJobData>): Promise<void> {
     const { customerId, establishmentId } = job.data;
-    const appointment = job.data.appointmentId
-      ? await this.prisma.appointment.findUnique({
-          where: { id: job.data.appointmentId },
-        })
-      : await this.prisma.appointment.findFirst({
-          where: {
-            customerId,
-            establishmentId,
-            status: 'WAITING_CONFIRMATION',
-          },
-          orderBy: { startTime: 'asc' },
-        });
+    // Older delayed jobs do not identify a specific appointment/slot. Ignoring
+    // them is safer than allowing a stale job to cancel a newer booking.
+    if (!job.data.appointmentId || !job.data.startTime) {
+      this.logger.warn('Ignoring legacy expiration job without appointmentId and startTime.');
+      return;
+    }
+
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: job.data.appointmentId },
+    });
 
     if (!appointment) {
       this.logger.log('Appointment no longer exists; expiration is a no-op.');
