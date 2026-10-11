@@ -1,7 +1,7 @@
-import { IsString, IsUUID } from 'class-validator';
+import { IsDateString, IsUUID } from 'class-validator';
 
 export class CreateAppointmentDto {
-  @IsString()
+  @IsDateString({ strict: true })
   startTime!: string;
 
   @IsUUID()
