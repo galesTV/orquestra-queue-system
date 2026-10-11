@@ -183,6 +183,16 @@ export class AppointmentsProcessor extends WorkerHost {
       return;
     }
 
+    // A delayed job from a previous schedule must not expire a rescheduled booking.
+    if (
+      (job.data.startTime && appointment.startTime.toISOString() !== job.data.startTime) ||
+      appointment.establishmentId !== establishmentId ||
+      appointment.customerId !== customerId
+    ) {
+      this.logger.log('Expiration job does not match the appointment current slot; skipping.');
+      return;
+    }
+
     const canceled = await this.prisma.$transaction(async (tx) => {
       await lockAppointmentSlot(tx, appointment.establishmentId, appointment.startTime);
 
