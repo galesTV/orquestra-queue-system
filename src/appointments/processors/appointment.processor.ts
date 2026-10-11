@@ -199,7 +199,14 @@ export class AppointmentsProcessor extends WorkerHost {
       const current = await tx.appointment.findUnique({
         where: { id: appointment.id },
       });
-      if (!current || current.status !== 'WAITING_CONFIRMATION') return null;
+      if (
+        !current ||
+        current.status !== 'WAITING_CONFIRMATION' ||
+        current.establishmentId !== appointment.establishmentId ||
+        current.startTime.getTime() !== appointment.startTime.getTime()
+      ) {
+        return null;
+      }
 
       return tx.appointment.update({
         where: { id: current.id },
