@@ -14,12 +14,12 @@ model Establishment {
 }
 
 model Appointment {
-  id              String           @id @default(uuid())
+  id              String            @id @default(uuid())
   startTime       DateTime
   status          AppointmentStatus @default(SCHEDULED)
   customerId      String
   establishmentId String
-  establishment   Establishment    @relation(fields: [establishmentId], references: [id])
+  establishment   Establishment     @relation(fields: [establishmentId], references: [id])
 }
 
 model WaitingQueue {
@@ -28,9 +28,10 @@ model WaitingQueue {
   joinedAt        DateTime      @default(now())
   customerId      String
   establishmentId String
+  startTime       DateTime
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
-  
-  startTime       DateTime?     // Null only for legacy queue entries awaiting manual slot assignment.\n\n  @@unique([establishmentId, startTime, position])
+
+  @@unique([establishmentId, startTime, position])
 }
 
 enum AppointmentStatus {
