@@ -120,6 +120,43 @@ export class AppointmentSlotsService {
     }
   }
 
+  async setActive(id: string, isActive: boolean) {
+    return this.prisma.$transaction(async (tx) => {
+      const initial = await tx.appointmentSlot.findUnique({ where: { id } });
+      if (!initial) throw new NotFoundException('Appointment slot not found');
+
+      await lockAppointmentSlot(tx, initial.establishmentId, initial.startTime);
+
+      const current = await tx.appointmentSlot.findUnique({ where: { id } });
+      if (
+        !current ||
+        current.establishmentId !== initial.establishmentId ||
+        current.startTime.getTime() !== initial.startTime.getTime()
+      ) {
+        throw new ConflictException(
+          'Appointment slot changed concurrently. Reload and retry.',
+        );
+      }
+
+      if (current.isActive === isActive) return current;
+
+      // Deactivation only closes an unused slot. Existing bookings and waitlists
+      // must be resolved first so no customer is stranded by a closed slot.
+      if (!isActive) {
+        await this.assertSlotCanBeChanged(
+          tx,
+          current.establishmentId,
+          current.startTime,
+        );
+      }
+
+      return tx.appointmentSlot.update({
+        where: { id },
+        data: { isActive },
+      });
+    });
+  }
+
   async remove(id: string) {
     return this.prisma.$transaction(async (tx) => {
       const initial = await tx.appointmentSlot.findUnique({ where: { id } });
