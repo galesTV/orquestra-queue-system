@@ -5,6 +5,8 @@ import { AppointmentsController } from './appointments.controller';
 import { AppointmentsProcessor } from './processors/appointment.processor';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { QueueGateway } from './gateways/queue.gateway';
+import { AppointmentSlotsController } from './appointment-slots.controller';
+import { AppointmentSlotsService } from './appointment-slots.service';
 
 @Module({
   imports: [
@@ -19,8 +21,8 @@ import { QueueGateway } from './gateways/queue.gateway';
     }),
     NotificationsModule,
   ],
-  controllers: [AppointmentsController],
-  providers: [AppointmentsService, AppointmentsProcessor, QueueGateway],
-  exports: [AppointmentsService, QueueGateway],
+  controllers: [AppointmentsController, AppointmentSlotsController],
+  providers: [AppointmentsService, AppointmentsProcessor, QueueGateway, AppointmentSlotsService],
+  exports: [AppointmentsService, QueueGateway, AppointmentSlotsService],
 })
 export class AppointmentsModule {}
