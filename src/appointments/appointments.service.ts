@@ -189,6 +189,15 @@ export class AppointmentsService {
         await lockAppointmentSlot(tx, lock.establishmentId, lock.startTime);
       }
 
+      const lockedCurrent = await tx.appointment.findUnique({ where: { id } });
+      if (
+        !lockedCurrent ||
+        lockedCurrent.establishmentId !== current.establishmentId ||
+        lockedCurrent.startTime.getTime() !== current.startTime.getTime()
+      ) {
+        throw new ConflictException('Appointment changed concurrently. Reload it and retry.');
+      }
+
       const conflict = await tx.appointment.findFirst({
         where: {
           id: { not: id },
@@ -240,6 +249,12 @@ export class AppointmentsService {
 
       const current = await tx.appointment.findUnique({ where: { id } });
       if (!current) throw new NotFoundException('Appointment not found');
+      if (
+        current.establishmentId !== appointment.establishmentId ||
+        current.startTime.getTime() !== appointment.startTime.getTime()
+      ) {
+        throw new ConflictException('Appointment changed concurrently. Retry cancellation.');
+      }
 
       if (current.status === 'CANCELED') return current;
 
@@ -269,6 +284,12 @@ export class AppointmentsService {
 
       const current = await tx.appointment.findUnique({ where: { id: appointmentId } });
       if (!current) throw new NotFoundException('Appointment not found');
+      if (
+        current.establishmentId !== appointment.establishmentId ||
+        current.startTime.getTime() !== appointment.startTime.getTime()
+      ) {
+        throw new ConflictException('Appointment changed concurrently. Reload it and retry.');
+      }
       if (current.status !== 'WAITING_CONFIRMATION') {
         throw new BadRequestException('Appointment is not waiting for confirmation');
       }
