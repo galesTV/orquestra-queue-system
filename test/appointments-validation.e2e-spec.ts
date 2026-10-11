@@ -1,8 +1,9 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { AppointmentsController } from '../src/appointments/appointments.controller';
 import { AppointmentsService } from '../src/appointments/appointments.service';
+import { configureGlobalValidation } from '../src/common/configure-global-validation';
 
 describe('Appointments request validation (e2e)', () => {
   let app: INestApplication;
@@ -32,13 +33,7 @@ describe('Appointments request validation (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
+    configureGlobalValidation(app);
 
     await app.init();
   });
