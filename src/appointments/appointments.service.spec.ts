@@ -20,7 +20,7 @@ describe('AppointmentsService slot integrity', () => {
         findUnique: jest.fn().mockResolvedValue(establishment),
       },
       appointmentSlot: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'slot-1' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'slot-1', isActive: true }),
       },
       appointment: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -59,6 +59,17 @@ describe('AppointmentsService slot integrity', () => {
 
     await expect(service.create({ customerId, establishmentId, startTime })).rejects.toThrow(
       'The requested time is not configured as an available slot for this establishment.',
+    );
+
+    expect(tx.appointment.create).not.toHaveBeenCalled();
+    expect(tx.waitingQueue.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects booking a configured but inactive slot', async () => {
+    tx.appointmentSlot.findUnique.mockResolvedValueOnce({ id: 'slot-1', isActive: false });
+
+    await expect(service.create({ customerId, establishmentId, startTime })).rejects.toThrow(
+      'The requested appointment slot is inactive and cannot accept bookings.',
     );
 
     expect(tx.appointment.create).not.toHaveBeenCalled();
