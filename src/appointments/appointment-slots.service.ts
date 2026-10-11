@@ -57,7 +57,9 @@ export class AppointmentSlotsService {
 
   async update(id: string, dto: UpdateAppointmentSlotDto) {
     const requestedStartTime = new Date(dto.startTime);
-    const result = await this.prisma.$transaction(async (tx) => {
+    let result;
+    try {
+      result = await this.prisma.$transaction(async (tx) => {
       const initial = await tx.appointmentSlot.findUnique({ where: { id } });
       if (!initial) throw new NotFoundException('Appointment slot not found');
 
@@ -94,7 +96,15 @@ export class AppointmentSlotsService {
         where: { id },
         data: { startTime: requestedStartTime },
       });
-    });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Another slot is already configured for this time.');
+      }
+      throw error;
+    }
 
     return result;
   }
