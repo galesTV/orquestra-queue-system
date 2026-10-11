@@ -74,6 +74,19 @@ export class AppointmentsProcessor extends WorkerHost {
     const promoted = await this.prisma.$transaction(async (tx) => {
       await lockAppointmentSlot(tx, establishmentId, slotStartTime);
 
+      const configuredSlot = await tx.appointmentSlot.findUnique({
+        where: {
+          establishmentId_startTime: {
+            establishmentId,
+            startTime: slotStartTime,
+          },
+        },
+      });
+      if (!configuredSlot || !configuredSlot.isActive) {
+        this.logger.log('Slot is missing or inactive; skipping waitlist promotion.');
+        return null;
+      }
+
       const activeAppointment = await tx.appointment.findFirst({
         where: {
           establishmentId,
