@@ -69,14 +69,15 @@ export class AppointmentsProcessor extends WorkerHost {
       this.logger.warn('Cannot process slot promotion without a startTime.');
       return;
     }
+    const slotStartTime = startTime;
 
     const promoted = await this.prisma.$transaction(async (tx) => {
-      await lockAppointmentSlot(tx, establishmentId, startTime!);
+      await lockAppointmentSlot(tx, establishmentId, slotStartTime);
 
       const activeAppointment = await tx.appointment.findFirst({
         where: {
           establishmentId,
-          startTime,
+          slotStartTime,
           status: { in: ['SCHEDULED', 'WAITING_CONFIRMATION'] },
         },
       });
@@ -90,7 +91,7 @@ export class AppointmentsProcessor extends WorkerHost {
 
       const appointment = await tx.appointment.create({
         data: {
-          startTime,
+          slotStartTime,
           customerId: nextInQueue.customerId,
           establishmentId,
           status: 'WAITING_CONFIRMATION',
@@ -138,7 +139,7 @@ export class AppointmentsProcessor extends WorkerHost {
         appointmentId: promoted.appointment.id,
         customerId: promoted.customerId,
         establishmentId,
-        startTime: startTime.toISOString(),
+        startTime: slotStartTime.toISOString(),
       },
       { delay: 10 * 1000 },
     );
@@ -148,7 +149,7 @@ export class AppointmentsProcessor extends WorkerHost {
       inQueue: false,
       status: 'PROMOTED',
       appointmentId: promoted.appointment.id,
-      startTime,
+      slotStartTime,
       message: 'You have been promoted to the selected time slot. Please confirm within 10 minutes.',
       establishment: { id: establishmentId },
     });
