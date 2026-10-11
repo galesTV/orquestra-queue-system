@@ -197,9 +197,12 @@ export class AppointmentsService {
           status: { in: [...ACTIVE_STATUSES] },
         },
       });
-      if (conflict) {
+      const queuedAhead = await tx.waitingQueue.findFirst({
+        where: { establishmentId: targetEstablishmentId, startTime: targetStartTime },
+      });
+      if (conflict || queuedAhead) {
         throw new ConflictException(
-          'The requested time slot is occupied. Create a waitlist entry instead of moving this appointment.',
+          'The requested time slot is occupied or has a waiting list. Create a waitlist entry instead of moving this appointment.',
         );
       }
 
@@ -214,6 +217,18 @@ export class AppointmentsService {
         },
       });
     });
+
+    const slotChanged =
+      targetEstablishmentId !== current.establishmentId ||
+      targetStartTime.getTime() !== current.startTime.getTime();
+    if (slotChanged) {
+      await this.appointmentQueue.add('process-cancellation', {
+        appointmentId: current.id,
+        establishmentId: current.establishmentId,
+        startTime: current.startTime.toISOString(),
+      });
+    }
+    return result;
   }
 
   async cancel(id: string) {
