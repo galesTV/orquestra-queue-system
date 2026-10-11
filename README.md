@@ -55,11 +55,25 @@ flowchart TD
 
 ## API Endpoints
 The API exposes the following endpoints for managing appointments and queues:
+### Appointment slots
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/appointment-slots` | Adds a predefined slot to an establishment catalog. |
+| `GET` | `/appointment-slots/establishment/:establishmentId` | Lists configured slots in chronological order. |
+
+Create a slot before accepting bookings for that time:
+```json
+{
+  "establishmentId": "b2c3d4e5-f6a7-4890-9234-23456789abcd",
+  "startTime": "2026-10-15T14:30:00.000Z"
+}
+```
+
 ### Appointments
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/appointments` | Creates a new appointment. |
-| `PATCH` | `/appointments/:id/cancel` | Cancels an appointment and triggers the processing of the waiting queue. |
+| `POST` | `/appointments` | Creates an appointment or adds the customer to that slot's waitlist if occupied. The requested time must exist in the catalog. |
+| `PATCH` | `/appointments/:id/cancel` | Cancels an appointment and triggers processing of that slot's waiting queue. |
 
 ## Quick start
 ```bash
