@@ -77,21 +77,21 @@ export class AppointmentsProcessor extends WorkerHost {
       const activeAppointment = await tx.appointment.findFirst({
         where: {
           establishmentId,
-          slotStartTime,
+          startTime: slotStartTime,
           status: { in: ['SCHEDULED', 'WAITING_CONFIRMATION'] },
         },
       });
       if (activeAppointment) return null;
 
       const nextInQueue = await tx.waitingQueue.findFirst({
-        where: { establishmentId, startTime },
+        where: { establishmentId, startTime: slotStartTime },
         orderBy: [{ position: 'asc' }, { joinedAt: 'asc' }],
       });
       if (!nextInQueue) return null;
 
       const appointment = await tx.appointment.create({
         data: {
-          slotStartTime,
+          startTime: slotStartTime,
           customerId: nextInQueue.customerId,
           establishmentId,
           status: 'WAITING_CONFIRMATION',
@@ -149,14 +149,14 @@ export class AppointmentsProcessor extends WorkerHost {
       inQueue: false,
       status: 'PROMOTED',
       appointmentId: promoted.appointment.id,
-      slotStartTime,
+      startTime: slotStartTime,
       message: 'You have been promoted to the selected time slot. Please confirm within 10 minutes.',
       establishment: { id: establishmentId },
     });
 
     await this.notificationQueue.add(
       'send-promotion-alert',
-      { customerId: promoted.customerId, establishmentId, startTime },
+      { customerId: promoted.customerId, establishmentId, startTime: slotStartTime },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 2000 },
