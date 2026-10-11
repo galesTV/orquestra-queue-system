@@ -19,6 +19,9 @@ describe('AppointmentsService slot integrity', () => {
       establishment: {
         findUnique: jest.fn().mockResolvedValue(establishment),
       },
+      appointmentSlot: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'slot-1' }),
+      },
       appointment: {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({
@@ -49,6 +52,17 @@ describe('AppointmentsService slot integrity', () => {
       prisma as PrismaService,
       queue as Queue,
     );
+  });
+
+  it('rejects a booking for a time not configured in the catalog', async () => {
+    tx.appointmentSlot.findUnique.mockResolvedValueOnce(null);
+
+    await expect(service.create({ customerId, establishmentId, startTime })).rejects.toThrow(
+      'The requested time is not configured as an available slot for this establishment.',
+    );
+
+    expect(tx.appointment.create).not.toHaveBeenCalled();
+    expect(tx.waitingQueue.create).not.toHaveBeenCalled();
   });
 
   it('adds a request to the selected slot waitlist when the slot is occupied', async () => {
