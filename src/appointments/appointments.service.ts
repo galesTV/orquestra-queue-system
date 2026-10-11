@@ -58,6 +58,17 @@ export class AppointmentsService {
         };
       }
 
+      if (existingAppointment?.customerId === customerId) {
+        return {
+          customerId,
+          inQueue: false,
+          status: existingAppointment.status,
+          appointmentId: existingAppointment.id,
+          establishment: { id: establishment.id, name: establishment.name },
+          message: 'You already have an appointment for this time slot.',
+        };
+      }
+
       if (existingAppointment) {
         const lastInQueue = await tx.waitingQueue.findFirst({
           where: { establishmentId, startTime },
@@ -209,7 +220,10 @@ export class AppointmentsService {
       const queuedAhead = await tx.waitingQueue.findFirst({
         where: { establishmentId: targetEstablishmentId, startTime: targetStartTime },
       });
-      if (conflict || queuedAhead) {
+      const targetSlotChanged =
+        targetEstablishmentId !== current.establishmentId ||
+        targetStartTime.getTime() !== current.startTime.getTime();
+      if (conflict || (targetSlotChanged && queuedAhead)) {
         throw new ConflictException(
           'The requested time slot is occupied or has a waiting list. Create a waitlist entry instead of moving this appointment.',
         );
