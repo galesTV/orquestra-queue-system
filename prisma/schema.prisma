@@ -17,6 +17,7 @@ model Establishment {
 model AppointmentSlot {
   id              String        @id @default(uuid())
   startTime       DateTime
+  isActive        Boolean       @default(true)
   establishmentId String
   establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 

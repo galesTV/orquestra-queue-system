@@ -28,6 +28,9 @@ describe('AppointmentsProcessor slot promotion', () => {
           status: 'WAITING_CONFIRMATION',
         }),
       },
+      appointmentSlot: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'slot-1', isActive: true }),
+      },
       waitingQueue: {
         findFirst: jest.fn().mockResolvedValue({
           id: 'queue-entry-1',
@@ -94,6 +97,22 @@ describe('AppointmentsProcessor slot promotion', () => {
       customerId,
       expect.objectContaining({ status: 'PROMOTED' }),
     );
+  });
+
+  it('does not promote customers when the slot is inactive', async () => {
+    tx.appointmentSlot.findUnique.mockResolvedValueOnce({ id: 'slot-1', isActive: false });
+    const job = {
+      id: 'cancel-job',
+      name: 'process-cancellation',
+      data: { establishmentId, startTime: startTime.toISOString() },
+    } as any;
+
+    await processor.process(job);
+
+    expect(tx.appointment.create).not.toHaveBeenCalled();
+    expect(tx.waitingQueue.delete).not.toHaveBeenCalled();
+    expect(appointmentQueue.add).not.toHaveBeenCalled();
+    expect(gateway.emitQueueUpdate).not.toHaveBeenCalled();
   });
 
   it('does not promote anyone when the slot is already occupied', async () => {

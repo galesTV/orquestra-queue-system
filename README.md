@@ -61,13 +61,13 @@ The API exposes the following endpoints for managing appointments and queues:
 | `POST` | `/appointment-slots` | Adds a predefined slot to an establishment catalog. |
 | `GET` | `/appointment-slots/establishment/:establishmentId` | Lists configured slots in chronological order. |
 | `PATCH` | `/appointment-slots/:id` | Changes a slot's start time when no active appointment or waiting queue depends on it. |
+| `PATCH` | `/appointment-slots/:id/activation` | Activates or deactivates a slot using `{ "isActive": boolean }`. |
 | `DELETE` | `/appointment-slots/:id` | Removes a slot when no active appointment or waiting queue depends on it. |
 
-Create a slot before accepting bookings for that time. Updating a slot only changes its start time. The API rejects changes or deletion if the slot has an active appointment or waiting customers:
+Create a slot before accepting bookings for that time. Updating a slot only changes its start time. New slots are active by default. Deactivation is allowed only when the slot has no active appointment or waiting customers, preserving existing bookings and avoiding stranded queue entries. Reactivation is allowed at any time. Inactive slots remain in the catalog but reject new bookings, and the worker will not promote waitlisted customers into them. Send this body to change activation status:
 ```json
 {
-  "establishmentId": "b2c3d4e5-f6a7-4890-9234-23456789abcd",
-  "startTime": "2026-10-15T14:30:00.000Z"
+  "isActive": false
 }
 ```
 

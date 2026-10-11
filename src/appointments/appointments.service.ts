@@ -46,6 +46,11 @@ export class AppointmentsService {
           'The requested time is not configured as an available slot for this establishment.',
         );
       }
+      if (!configuredSlot.isActive) {
+        throw new BadRequestException(
+          'The requested appointment slot is inactive and cannot accept bookings.',
+        );
+      }
 
       const existingAppointment = await tx.appointment.findFirst({
         where: {
@@ -236,6 +241,11 @@ export class AppointmentsService {
         if (!configuredSlot) {
           throw new BadRequestException(
             'The requested time is not configured as an available slot for this establishment.',
+          );
+        }
+        if (!configuredSlot.isActive) {
+          throw new BadRequestException(
+            'The requested appointment slot is inactive and cannot accept bookings.',
           );
         }
       }
