@@ -102,7 +102,7 @@ export class AppointmentsProcessor extends WorkerHost {
 
       // Re-number remaining entries without colliding with the slot-scoped unique index.
       const remaining = await tx.waitingQueue.findMany({
-        where: { establishmentId, startTime },
+        where: { establishmentId, startTime: slotStartTime },
         orderBy: [{ position: 'asc' }, { joinedAt: 'asc' }],
       });
       if (remaining.length > 0) {
