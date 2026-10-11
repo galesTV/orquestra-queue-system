@@ -1,18 +1,21 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Queue, Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QueueGateway } from '../gateways/queue.gateway';
+import { lockAppointmentSlot } from '../appointment-slot-lock';
 
-// Interface definitions for job data
 interface CancellationJobData {
-  appointmentId: string;
+  appointmentId?: string;
   establishmentId: string;
+  startTime?: string;
 }
 
 interface ExpirationJobData {
+  appointmentId?: string;
   customerId: string;
   establishmentId: string;
+  startTime?: string;
 }
 
 @Processor('appointment-queue', {
@@ -33,147 +36,183 @@ export class AppointmentsProcessor extends WorkerHost {
     private readonly queueGateway: QueueGateway,
   ) {
     super();
-    this.logger.log(
-      'AppointmentsProcessor initialized and ready to process jobs.',
-    );
+    this.logger.log('AppointmentsProcessor initialized and ready to process jobs.');
   }
 
-  async process(job: Job<any, any, string>): Promise<any> {
-    this.logger.log(`⚙️ Processing job ${job.id} of type: ${job.name}`);
+  async process(job: Job<any, any, string>): Promise<void> {
+    this.logger.log(`Processing job ${job.id} of type: ${job.name}`);
 
     switch (job.name) {
       case 'process-cancellation':
         await this.handleCancellation(job as Job<CancellationJobData>);
         break;
-
       case 'check-expiration':
         await this.handleExpiration(job as Job<ExpirationJobData>);
         break;
-
       default:
-        this.logger.warn(`⚠️ Unknown job type: ${job.name}`);
+        this.logger.warn(`Unknown job type: ${job.name}`);
     }
   }
 
-  private async handleCancellation(job: Job<CancellationJobData>) {
+  private async handleCancellation(job: Job<CancellationJobData>): Promise<void> {
     const { establishmentId } = job.data;
-    this.logger.log(
-      `🔄 Orchestrating queue for the establishment: ${establishmentId}`,
-    );
+    let startTime = job.data.startTime ? new Date(job.data.startTime) : undefined;
 
-    const nextInQueue = await this.prisma.waitingQueue.findFirst({
-      where: { establishmentId },
-      orderBy: { position: 'asc' },
-    });
+    if (!startTime && job.data.appointmentId) {
+      const appointment = await this.prisma.appointment.findUnique({
+        where: { id: job.data.appointmentId },
+      });
+      startTime = appointment?.startTime;
+    }
 
-    if (!nextInQueue) {
-      this.logger.log(
-        'ℹ️ No client in the waiting queue for this establishment.',
-      );
+    if (!startTime) {
+      this.logger.warn('Cannot process slot promotion without a startTime.');
       return;
     }
 
-    await this.prisma.$transaction([
-      this.prisma.appointment.create({
+    const promoted = await this.prisma.$transaction(async (tx) => {
+      await lockAppointmentSlot(tx, establishmentId, startTime!);
+
+      const activeAppointment = await tx.appointment.findFirst({
+        where: {
+          establishmentId,
+          startTime,
+          status: { in: ['SCHEDULED', 'WAITING_CONFIRMATION'] },
+        },
+      });
+      if (activeAppointment) return null;
+
+      const nextInQueue = await tx.waitingQueue.findFirst({
+        where: { establishmentId, startTime },
+        orderBy: [{ position: 'asc' }, { joinedAt: 'asc' }],
+      });
+      if (!nextInQueue) return null;
+
+      const appointment = await tx.appointment.create({
         data: {
-          startTime: new Date(),
+          startTime,
           customerId: nextInQueue.customerId,
-          establishmentId: nextInQueue.establishmentId,
+          establishmentId,
           status: 'WAITING_CONFIRMATION',
         },
-      }),
-      this.prisma.waitingQueue.delete({
-        where: { id: nextInQueue.id },
-      }),
-    ]);
+      });
 
-    this.logger.log(
-      `✅ Client ${nextInQueue.customerId} promoted successfully!`,
-    );
+      await tx.waitingQueue.delete({ where: { id: nextInQueue.id } });
 
-    this.queueGateway.emitQueueUpdate(nextInQueue.customerId, {
-      customerId: nextInQueue.customerId,
-      inQueue: false,
-      status: 'PROMOTED',
-      message:
-        'You have been promoted to an appointment. Please confirm within 10 minutes.',
-      establishment: { id: nextInQueue.establishmentId },
+      // Re-number remaining entries without colliding with the slot-scoped unique index.
+      const remaining = await tx.waitingQueue.findMany({
+        where: { establishmentId, startTime },
+        orderBy: [{ position: 'asc' }, { joinedAt: 'asc' }],
+      });
+      if (remaining.length > 0) {
+        const maxPosition = remaining.reduce(
+          (max, entry) => Math.max(max, entry.position),
+          0,
+        );
+        const offset = maxPosition + remaining.length + 1;
+        for (let index = 0; index < remaining.length; index += 1) {
+          await tx.waitingQueue.update({
+            where: { id: remaining[index].id },
+            data: { position: offset + index },
+          });
+        }
+        for (let index = 0; index < remaining.length; index += 1) {
+          await tx.waitingQueue.update({
+            where: { id: remaining[index].id },
+            data: { position: index + 1 },
+          });
+        }
+      }
+
+      return { appointment, customerId: nextInQueue.customerId };
     });
 
-    await this.notificationQueue.add(
-      'send-promotion-alert',
-      {
-        customerId: nextInQueue.customerId,
-        establishmentId: nextInQueue.establishmentId,
-      },
-      {
-        attempts: 3, // Retry the job up to 3 times in case of failure
-        backoff: {
-          type: 'exponential',
-          delay: 2000, // 2 seconds
-        },
-      },
-    );
-
-    const CONFIRMATION_TIMEOUT_MS = 10 * 1000;
+    if (!promoted) {
+      this.logger.log('Slot is occupied or the waitlist is empty; no promotion needed.');
+      return;
+    }
 
     await this.appointmentQueue.add(
       'check-expiration',
       {
-        customerId: nextInQueue.customerId,
-        establishmentId: nextInQueue.establishmentId,
+        appointmentId: promoted.appointment.id,
+        customerId: promoted.customerId,
+        establishmentId,
+        startTime: startTime.toISOString(),
       },
+      { delay: 10 * 1000 },
+    );
+
+    this.queueGateway.emitQueueUpdate(promoted.customerId, {
+      customerId: promoted.customerId,
+      inQueue: false,
+      status: 'PROMOTED',
+      appointmentId: promoted.appointment.id,
+      startTime,
+      message: 'You have been promoted to the selected time slot. Please confirm within 10 minutes.',
+      establishment: { id: establishmentId },
+    });
+
+    await this.notificationQueue.add(
+      'send-promotion-alert',
+      { customerId: promoted.customerId, establishmentId, startTime },
       {
-        delay: CONFIRMATION_TIMEOUT_MS,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
       },
     );
   }
 
-  private async handleExpiration(job: Job<ExpirationJobData>) {
+  private async handleExpiration(job: Job<ExpirationJobData>): Promise<void> {
     const { customerId, establishmentId } = job.data;
+    const appointment = job.data.appointmentId
+      ? await this.prisma.appointment.findUnique({
+          where: { id: job.data.appointmentId },
+        })
+      : await this.prisma.appointment.findFirst({
+          where: {
+            customerId,
+            establishmentId,
+            status: 'WAITING_CONFIRMATION',
+          },
+          orderBy: { startTime: 'asc' },
+        });
 
-    this.logger.log(
-      `⏳ Checking expiration for customer ${customerId} at establishment ${establishmentId}`,
-    );
-
-    // Search for an appointment that is still waiting for confirmation for this customer and establishment
-    const appointment = await this.prisma.appointment.findFirst({
-      where: {
-        customerId,
-        establishmentId,
-        status: 'WAITING_CONFIRMATION',
-      },
-    });
-
-    // If no appointment is found, it means the client already confirmed or the appointment was canceled by another process. In both cases, we can just log and exit.
     if (!appointment) {
-      this.logger.log(
-        `✨ Client ${customerId} already confirmed or appointment state changed. No action needed.`,
-      );
+      this.logger.log('Appointment no longer exists; expiration is a no-op.');
       return;
     }
 
-    this.logger.warn(
-      `🚨 Time's up! Client ${customerId} failed to confirm. Expiring appointment...`,
-    );
+    const canceled = await this.prisma.$transaction(async (tx) => {
+      await lockAppointmentSlot(tx, appointment.establishmentId, appointment.startTime);
 
-    // If the appointment is still waiting for confirmation, we cancel it
-    await this.prisma.appointment.update({
-      where: { id: appointment.id },
-      data: { status: 'CANCELED' },
+      const current = await tx.appointment.findUnique({
+        where: { id: appointment.id },
+      });
+      if (!current || current.status !== 'WAITING_CONFIRMATION') return null;
+
+      return tx.appointment.update({
+        where: { id: current.id },
+        data: { status: 'CANCELED' },
+      });
     });
+
+    if (!canceled) {
+      this.logger.log('Appointment was confirmed or changed before expiration; skipping.');
+      return;
+    }
 
     this.queueGateway.emitQueueUpdate(customerId, {
       customerId,
       inQueue: false,
       status: 'CANCELED',
-      message: 'Your appointment has been canceled due to no confirmation.',
+      message: 'Your appointment was canceled because confirmation was not received in time.',
     });
 
-    // After canceling the appointment, we can trigger the cancellation workflow to promote the next client in the waiting queue
     await this.appointmentQueue.add('process-cancellation', {
-      appointmentId: appointment.id,
-      establishmentId: appointment.establishmentId,
+      appointmentId: canceled.id,
+      establishmentId: canceled.establishmentId,
+      startTime: canceled.startTime.toISOString(),
     });
   }
 }
