@@ -56,6 +56,8 @@ flowchart TD
 
 ## API Endpoints
 A API expõe os seguintes endpoints para a gestão de agendamentos e filas:
+
+As regras de antecedência são aplicadas a novos agendamentos e remarcações. Por padrão, o agendamento deve ocorrer com pelo menos 15 minutos de antecedência e no máximo 90 dias. Configure `BOOKING_MIN_NOTICE_MINUTES` e `BOOKING_MAX_ADVANCE_DAYS` nas variáveis de ambiente para ajustar esses limites. Horários inválidos ou no passado são rejeitados pela API.
 ### Catálogo de horários
 | Método | Endpoint | Descrição |
 | :--- | :--- | :--- |
