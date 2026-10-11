@@ -12,6 +12,7 @@ Orquestra é um ecossistema de micro-gerenciamento de agendamentos e filas de es
 
 ## 🚀 Funcionalidades
 - **Agendamentos Dinâmicos**: Criação e gestão de horários com estados controlados.
+- **Regras de Agendamento**: Bloqueio de horários passados e limites configuráveis de antecedência mínima e máxima.
 - **Fila de Espera Automática**: Quando um agendamento é cancelado, um Job é enviado para o Redis.
 - **Processamento Assíncrono**: Um Worker (Processor) processa a fila em segundo plano, promovendo o próximo cliente da lista de espera para o horário vago.
 - **Arquitetura Escalável**: Separação clara entre Producers e Consumers.
