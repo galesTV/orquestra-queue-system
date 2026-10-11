@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -19,76 +20,99 @@ export class AppointmentsService {
   async create(createAppointmentDto: CreateAppointmentDto) {
     const { customerId, establishmentId, startTime } = createAppointmentDto;
 
-    const activeAppointment = await this.prisma.appointment.findFirst({
-      where: {
-        establishmentId,
-        status: {
-          in: ['SCHEDULED', 'WAITING_CONFIRMATION'],
-        },
-      },
-    });
+    const lockKey = `lock:establishment:${establishmentId}`;
 
-    if (activeAppointment) {
-      const lastInQueue = await this.prisma.waitingQueue.findFirst({
-        where: { establishmentId },
-        orderBy: { position: 'desc' },
-      });
+    const redisClient = (await this.appointmentQueue.client) as any;
 
-      const nextPosition = lastInQueue ? lastInQueue.position + 1 : 1;
+    const acquiredLock = await redisClient.set(
+      lockKey,
+      customerId,
+      'PX',
+      5000,
+      'NX',
+    );
 
-      const queueEntry = await this.prisma.waitingQueue.create({
-        data: {
-          customerId,
-          establishmentId,
-          position: nextPosition,
-        },
-        include: { establishment: true },
-      });
-
-      return {
-        customerId,
-        inQueue: true,
-        status: 'WAITING',
-        position: queueEntry.position,
-        establishment: {
-          id: queueEntry.establishmentId,
-          name: queueEntry.establishment.name,
-        },
-        message: `The establishment is currently busy. You have been added to the waiting queue.`,
-      };
+    if (!acquiredLock) {
+      throw new ConflictException(
+        'Another appointment is being processed for this establishment. Please try again shortly.',
+      );
     }
 
-    const newAppointment = await this.prisma.appointment.create({
-      data: {
-        startTime: new Date(startTime),
-        customerId,
-        establishmentId,
-        status: 'WAITING_CONFIRMATION',
-      },
-      include: { establishment: true },
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const activeAppointment = await tx.appointment.findFirst({
+          where: {
+            establishmentId,
+            status: {
+              in: ['SCHEDULED', 'WAITING_CONFIRMATION'],
+            },
+          },
+        });
 
-    await this.appointmentQueue.add(
-      'check-expiration',
-      {
-        appointmentId: newAppointment.id,
-        establishmentId: newAppointment.establishmentId,
-        customerId: newAppointment.customerId,
-      },
-      { delay: 10 * 1000 },
-    ); // Exemplo: 10 segundos em milissegundos
+        if (activeAppointment) {
+          const lastInQueue = await tx.waitingQueue.findFirst({
+            where: { establishmentId },
+            orderBy: { position: 'desc' },
+          });
 
-    return {
-      customerId,
-      inQueue: false,
-      status: 'WAITING_CONFIRMATION',
-      appointmentId: newAppointment.id,
-      establishment: {
-        id: newAppointment.establishmentId,
-        name: newAppointment.establishment.name,
-      },
-      message: `You have an appointment scheduled. Please confirm within 10 minutes.`,
-    };
+          const nextPosition = lastInQueue ? lastInQueue.position + 1 : 1;
+
+          const queueEntry = await tx.waitingQueue.create({
+            data: {
+              customerId,
+              establishmentId,
+              position: nextPosition,
+            },
+            include: { establishment: true },
+          });
+
+          return {
+            customerId,
+            inQueue: true,
+            position: queueEntry.position,
+            establishment: {
+              id: queueEntry.establishmentId,
+              name: queueEntry.establishment.name,
+            },
+            message: `The establishment is currently busy. You have been added to the waiting queue at position ${queueEntry.position}.`,
+          };
+        }
+
+        const newAppointment = await tx.appointment.create({
+          data: {
+            startTime: new Date(startTime),
+            customerId,
+            establishmentId,
+            status: 'WAITING_CONFIRMATION',
+          },
+          include: { establishment: true },
+        });
+
+        await this.appointmentQueue.add(
+          'check-expiration',
+          {
+            appointmentId: newAppointment.id,
+            establishmentId: newAppointment.establishmentId,
+            customerId: newAppointment.customerId,
+          },
+          { delay: 10 * 1000 },
+        );
+
+        return {
+          customerId,
+          inQueue: false,
+          status: 'WAITING_CONFIRMATION',
+          appointmentId: newAppointment.id,
+          establishment: {
+            id: newAppointment.establishmentId,
+            name: newAppointment.establishment.name,
+          },
+          message: `You have an appointment scheduled. Please confirm within 10 minutes.`,
+        };
+      });
+    } finally {
+      await redisClient.del(lockKey);
+    }
   }
 
   async findAll() {
