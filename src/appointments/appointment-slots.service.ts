@@ -57,56 +57,67 @@ export class AppointmentSlotsService {
 
   async update(id: string, dto: UpdateAppointmentSlotDto) {
     const requestedStartTime = new Date(dto.startTime);
-    let result;
+
     try {
-      result = await this.prisma.$transaction(async (tx) => {
-      const initial = await tx.appointmentSlot.findUnique({ where: { id } });
-      if (!initial) throw new NotFoundException('Appointment slot not found');
+      return await this.prisma.$transaction(async (tx) => {
+        const initial = await tx.appointmentSlot.findUnique({ where: { id } });
+        if (!initial) throw new NotFoundException('Appointment slot not found');
 
-      const lockTargets = [
-        { establishmentId: initial.establishmentId, startTime: initial.startTime },
-        { establishmentId: initial.establishmentId, startTime: requestedStartTime },
-      ].sort((a, b) => {
-        const left = `${a.establishmentId}:${a.startTime.toISOString()}`;
-        const right = `${b.establishmentId}:${b.startTime.toISOString()}`;
-        return left.localeCompare(right);
-      });
+        const lockTargets = [
+          { establishmentId: initial.establishmentId, startTime: initial.startTime },
+          { establishmentId: initial.establishmentId, startTime: requestedStartTime },
+        ].sort((a, b) => {
+          const left = `${a.establishmentId}:${a.startTime.toISOString()}`;
+          const right = `${b.establishmentId}:${b.startTime.toISOString()}`;
+          return left.localeCompare(right);
+        });
 
-      for (const target of lockTargets) {
-        await lockAppointmentSlot(tx, target.establishmentId, target.startTime);
-      }
+        for (const target of lockTargets) {
+          await lockAppointmentSlot(tx, target.establishmentId, target.startTime);
+        }
 
-      const current = await tx.appointmentSlot.findUnique({ where: { id } });
-      if (
-        !current ||
-        current.establishmentId !== initial.establishmentId ||
-        current.startTime.getTime() !== initial.startTime.getTime()
-      ) {
-        throw new ConflictException('Appointment slot changed concurrently. Reload and retry.');
-      }
+        const current = await tx.appointmentSlot.findUnique({ where: { id } });
+        if (
+          !current ||
+          current.establishmentId !== initial.establishmentId ||
+          current.startTime.getTime() !== initial.startTime.getTime()
+        ) {
+          throw new ConflictException(
+            'Appointment slot changed concurrently. Reload and retry.',
+          );
+        }
 
-      if (current.startTime.getTime() === requestedStartTime.getTime()) {
-        return current;
-      }
+        if (current.startTime.getTime() === requestedStartTime.getTime()) {
+          return current;
+        }
 
-      await this.assertSlotCanBeChanged(tx, current.establishmentId, current.startTime);
-      await this.assertTargetTimeIsFree(tx, current.establishmentId, requestedStartTime);
+        await this.assertSlotCanBeChanged(
+          tx,
+          current.establishmentId,
+          current.startTime,
+        );
+        await this.assertTargetTimeIsFree(
+          tx,
+          current.establishmentId,
+          requestedStartTime,
+        );
 
-      return tx.appointmentSlot.update({
-        where: { id },
-        data: { startTime: requestedStartTime },
+        return tx.appointmentSlot.update({
+          where: { id },
+          data: { startTime: requestedStartTime },
+        });
       });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Another slot is already configured for this time.');
+        throw new ConflictException(
+          'Another slot is already configured for this time.',
+        );
       }
       throw error;
     }
-
-    return result;
   }
 
   async remove(id: string) {
