@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { lockAppointmentSlot } from './appointment-slot-lock';
+import { validateBookingTime } from './booking-time-policy';
 
 const ACTIVE_STATUSES = ['SCHEDULED', 'WAITING_CONFIRMATION'] as const;
 const CONFIRMATION_TIMEOUT_MS = 10 * 1000;
@@ -27,6 +28,7 @@ export class AppointmentsService {
     const startTime = new Date(createAppointmentDto.startTime);
 
     const result = await this.prisma.$transaction(async (tx) => {
+      validateBookingTime(startTime);
       await lockAppointmentSlot(tx, establishmentId, startTime);
 
       const establishment = await tx.establishment.findUnique({
@@ -230,6 +232,7 @@ export class AppointmentsService {
         targetStartTime.getTime() !== current.startTime.getTime();
 
       if (targetSlotChanged) {
+        validateBookingTime(targetStartTime);
         const configuredSlot = await tx.appointmentSlot.findUnique({
           where: {
             establishmentId_startTime: {
