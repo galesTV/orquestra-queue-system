@@ -4,6 +4,8 @@ import { BullModule } from '@nestjs/bullmq';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -23,5 +25,7 @@ dotenv.config();
     AppointmentsModule,
     NotificationsModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
