@@ -15,6 +15,16 @@ const ACTIVE_APPOINTMENT_STATUSES = ['SCHEDULED', 'WAITING_CONFIRMATION'] as con
 export class AppointmentSlotsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async assertBelongsToEstablishment(id: string, establishmentId: string): Promise<void> {
+    const slot = await this.prisma.appointmentSlot.findUnique({
+      where: { id },
+      select: { establishmentId: true },
+    });
+    if (!slot || slot.establishmentId !== establishmentId) {
+      throw new NotFoundException('Appointment slot not found');
+    }
+  }
+
   async create(dto: CreateAppointmentSlotDto) {
     const startTime = new Date(dto.startTime);
     const establishment = await this.prisma.establishment.findUnique({
