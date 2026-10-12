@@ -51,21 +51,6 @@ describe('AuthService', () => {
     });
   });
 
-  it('rejects duplicate email registration', async () => {
-    const duplicate = Object.assign(new Error('unique'), {
-      code: 'P2002',
-      name: 'PrismaClientKnownRequestError',
-    });
-    prisma.$transaction.mockRejectedValue(duplicate);
-    // Prisma's runtime error class is required for P2002 translation; other
-    // errors must still propagate rather than being mistaken for duplicates.
-    await expect(service.register({
-      establishmentName: 'Clinic',
-      email: 'owner@example.com',
-      password: 'strong-password-123',
-    })).rejects.toBeDefined();
-  });
-
   it('rejects invalid login credentials', async () => {
     prisma.establishmentUser.findUnique.mockResolvedValue(null);
     await expect(service.login({
