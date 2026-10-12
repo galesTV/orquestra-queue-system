@@ -20,6 +20,7 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
   async register(dto: RegisterEstablishmentDto) {
+    this.assertSecretConfigured();
     const email = dto.email.trim().toLowerCase();
     const salt = randomBytes(16).toString('hex');
     const passwordHash = `${salt}:${scryptSync(dto.password, salt, 64).toString('hex')}`;
@@ -47,6 +48,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    this.assertSecretConfigured();
     const owner = await this.prisma.establishmentUser.findUnique({
       where: { email: dto.email.trim().toLowerCase() },
     });
@@ -105,11 +107,16 @@ export class AuthService {
     return `${payload}.${this.sign(payload)}`;
   }
 
-  private sign(payload: string): string {
+  private assertSecretConfigured(): string {
     const secret = process.env.AUTH_TOKEN_SECRET;
     if (!secret || secret.length < 32) {
       throw new Error('AUTH_TOKEN_SECRET must contain at least 32 characters.');
     }
+    return secret;
+  }
+
+  private sign(payload: string): string {
+    const secret = this.assertSecretConfigured();
     return createHmac('sha256', secret).update(payload).digest('base64url');
   }
 
