@@ -55,6 +55,12 @@ flowchart TD
 - **Transaction Safety:** Critical state transitions—such as promoting a customer from the waiting list to an active slot—are handled via Prisma Transactions to prevent data loss or double-booking.
 - **Environment Parity:** The entire stack (Database and Message Broker) is orchestrated via Docker, ensuring a seamless "plug-and-play" experience for developers and reviewers.
 
+## Authentication
+- `POST /auth/register`: creates an establishment and its owner account. Body: `{ "establishmentName": "Clinic", "email": "owner@example.com", "password": "at-least-12-chars" }`.
+- `POST /auth/login`: authenticates an owner. Body: `{ "email": "owner@example.com", "password": "..." }`.
+- Send the returned `accessToken` as `Authorization: Bearer <token>` when managing appointment slots. Tokens expire after 8 hours.
+- Set `AUTH_TOKEN_SECRET` to a random secret of at least 32 characters before starting the API. Do not reuse a committed or public secret.
+
 ## API Endpoints
 The API exposes the following endpoints for managing appointments and queues:
 
