@@ -54,6 +54,37 @@ describe('AppointmentsService slot integrity', () => {
     );
   });
 
+  it('rejects appointments in the past before accessing persistence', async () => {
+    const pastStartTime = new Date(Date.now() - 60_000).toISOString();
+
+    await expect(
+      service.create({ customerId, establishmentId, startTime: pastStartTime }),
+    ).rejects.toThrow('Appointments cannot be booked in the past.');
+
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+    expect(tx.appointment.create).not.toHaveBeenCalled();
+    expect(tx.waitingQueue.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects appointments beyond the maximum booking horizon', async () => {
+    const originalMaxAdvance = process.env.BOOKING_MAX_ADVANCE_DAYS;
+    process.env.BOOKING_MAX_ADVANCE_DAYS = '1';
+
+    try {
+      const tooFarAhead = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+
+      await expect(
+        service.create({ customerId, establishmentId, startTime: tooFarAhead }),
+      ).rejects.toThrow('Appointments cannot be booked more than 1 days in advance.');
+
+      expect(tx.appointment.create).not.toHaveBeenCalled();
+      expect(tx.waitingQueue.create).not.toHaveBeenCalled();
+    } finally {
+      if (originalMaxAdvance === undefined) delete process.env.BOOKING_MAX_ADVANCE_DAYS;
+      else process.env.BOOKING_MAX_ADVANCE_DAYS = originalMaxAdvance;
+    }
+  });
+
   it('rejects a booking for a time not configured in the catalog', async () => {
     tx.appointmentSlot.findUnique.mockResolvedValueOnce(null);
 

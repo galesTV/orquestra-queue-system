@@ -12,6 +12,7 @@ Orquestra é um ecossistema de micro-gerenciamento de agendamentos e filas de es
 
 ## 🚀 Funcionalidades
 - **Agendamentos Dinâmicos**: Criação e gestão de horários com estados controlados.
+- **Regras de Agendamento**: Bloqueio de horários passados e limites configuráveis de antecedência mínima e máxima.
 - **Fila de Espera Automática**: Quando um agendamento é cancelado, um Job é enviado para o Redis.
 - **Processamento Assíncrono**: Um Worker (Processor) processa a fila em segundo plano, promovendo o próximo cliente da lista de espera para o horário vago.
 - **Arquitetura Escalável**: Separação clara entre Producers e Consumers.
@@ -55,6 +56,8 @@ flowchart TD
 
 ## API Endpoints
 A API expõe os seguintes endpoints para a gestão de agendamentos e filas:
+
+As regras de antecedência são aplicadas a novos agendamentos e remarcações. Por padrão, o agendamento deve ocorrer com pelo menos 15 minutos de antecedência e no máximo 90 dias. Configure `BOOKING_MIN_NOTICE_MINUTES` e `BOOKING_MAX_ADVANCE_DAYS` nas variáveis de ambiente para ajustar esses limites. Horários inválidos ou no passado são rejeitados pela API.
 ### Catálogo de horários
 | Método | Endpoint | Descrição |
 | :--- | :--- | :--- |

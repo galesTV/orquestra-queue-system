@@ -12,6 +12,7 @@ Orquestra is a micro-management ecosystem for appointments and asynchronous wait
 
 ## 🚀 Features
 - **Dynamic Scheduling**: Create and manage schedules with controlled statuses.
+- **Booking Time Rules**: Reject past appointments and enforce configurable minimum notice and maximum advance windows.
 - **Automatic Waitlist**: When a booking is canceled, a Job is sent to Redis.
 - **Asynchronous Processing**: A Worker (Processor) processes the queue in the background, moving the next customer from the waitlist to the available time slot.
 - **Scalable Architecture**: Clear separation between Producers and Consumers.
@@ -55,6 +56,8 @@ flowchart TD
 
 ## API Endpoints
 The API exposes the following endpoints for managing appointments and queues:
+
+Booking policy applies to new appointments and appointment rescheduling. By default, bookings must be at least 15 minutes ahead and no more than 90 days ahead. Configure `BOOKING_MIN_NOTICE_MINUTES` and `BOOKING_MAX_ADVANCE_DAYS` through environment variables to adjust these limits. Invalid or past times are rejected by the API.
 ### Appointment slots
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
