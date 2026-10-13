@@ -20,7 +20,9 @@ describe('AppointmentsService slot integrity', () => {
         findUnique: jest.fn().mockResolvedValue(establishment),
       },
       appointmentSlot: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'slot-1', isActive: true }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'slot-1', isActive: true }),
       },
       appointment: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -37,21 +39,24 @@ describe('AppointmentsService slot integrity', () => {
       },
       waitingQueue: {
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockImplementation(({ data }: { data: { position: number } }) => Promise.resolve({ id: 'queue-1', position: data.position })),
+        create: jest
+          .fn()
+          .mockImplementation(({ data }: { data: { position: number } }) =>
+            Promise.resolve({ id: 'queue-1', position: data.position }),
+          ),
       },
     };
 
     prisma = {
-      $transaction: jest.fn((callback: (client: any) => unknown) => callback(tx)),
+      $transaction: jest.fn((callback: (client: any) => unknown) =>
+        callback(tx),
+      ),
       appointment: {},
       waitingQueue: {},
       establishment: {},
     };
     queue = { add: jest.fn().mockResolvedValue({ id: 'job-1' }) };
-    service = new AppointmentsService(
-      prisma as PrismaService,
-      queue as Queue,
-    );
+    service = new AppointmentsService(prisma as PrismaService, queue as Queue);
   });
 
   it('rejects appointments in the past before accessing persistence', async () => {
@@ -71,16 +76,21 @@ describe('AppointmentsService slot integrity', () => {
     process.env.BOOKING_MAX_ADVANCE_DAYS = '1';
 
     try {
-      const tooFarAhead = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+      const tooFarAhead = new Date(
+        Date.now() + 2 * 24 * 60 * 60 * 1000,
+      ).toISOString();
 
       await expect(
         service.create({ customerId, establishmentId, startTime: tooFarAhead }),
-      ).rejects.toThrow('Appointments cannot be booked more than 1 days in advance.');
+      ).rejects.toThrow(
+        'Appointments cannot be booked more than 1 days in advance.',
+      );
 
       expect(tx.appointment.create).not.toHaveBeenCalled();
       expect(tx.waitingQueue.create).not.toHaveBeenCalled();
     } finally {
-      if (originalMaxAdvance === undefined) delete process.env.BOOKING_MAX_ADVANCE_DAYS;
+      if (originalMaxAdvance === undefined)
+        delete process.env.BOOKING_MAX_ADVANCE_DAYS;
       else process.env.BOOKING_MAX_ADVANCE_DAYS = originalMaxAdvance;
     }
   });
@@ -88,7 +98,9 @@ describe('AppointmentsService slot integrity', () => {
   it('rejects a booking for a time not configured in the catalog', async () => {
     tx.appointmentSlot.findUnique.mockResolvedValueOnce(null);
 
-    await expect(service.create({ customerId, establishmentId, startTime })).rejects.toThrow(
+    await expect(
+      service.create({ customerId, establishmentId, startTime }),
+    ).rejects.toThrow(
       'The requested time is not configured as an available slot for this establishment.',
     );
 
@@ -97,9 +109,14 @@ describe('AppointmentsService slot integrity', () => {
   });
 
   it('rejects booking a configured but inactive slot', async () => {
-    tx.appointmentSlot.findUnique.mockResolvedValueOnce({ id: 'slot-1', isActive: false });
+    tx.appointmentSlot.findUnique.mockResolvedValueOnce({
+      id: 'slot-1',
+      isActive: false,
+    });
 
-    await expect(service.create({ customerId, establishmentId, startTime })).rejects.toThrow(
+    await expect(
+      service.create({ customerId, establishmentId, startTime }),
+    ).rejects.toThrow(
       'The requested appointment slot is inactive and cannot accept bookings.',
     );
 
@@ -108,12 +125,18 @@ describe('AppointmentsService slot integrity', () => {
   });
 
   it('adds a request to the selected slot waitlist when the slot is occupied', async () => {
-    tx.appointment.findFirst.mockResolvedValueOnce({ id: 'occupied-appointment' });
+    tx.appointment.findFirst.mockResolvedValueOnce({
+      id: 'occupied-appointment',
+    });
     tx.waitingQueue.findFirst
       .mockResolvedValueOnce(null) // no duplicate request by this customer
       .mockResolvedValueOnce({ position: 2 }); // last queue entry
 
-    const result = await service.create({ customerId, establishmentId, startTime });
+    const result = await service.create({
+      customerId,
+      establishmentId,
+      startTime,
+    });
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.waitingQueue.create).toHaveBeenCalledWith({
@@ -129,20 +152,30 @@ describe('AppointmentsService slot integrity', () => {
   });
 
   it('does not create duplicate waitlist entries for the same customer and slot', async () => {
-    tx.appointment.findFirst.mockResolvedValueOnce({ id: 'occupied-appointment' });
+    tx.appointment.findFirst.mockResolvedValueOnce({
+      id: 'occupied-appointment',
+    });
     tx.waitingQueue.findFirst.mockResolvedValueOnce({
       id: 'queue-existing',
       position: 4,
     });
 
-    const result = await service.create({ customerId, establishmentId, startTime });
+    const result = await service.create({
+      customerId,
+      establishmentId,
+      startTime,
+    });
 
     expect(result).toMatchObject({ inQueue: true, position: 4 });
     expect(tx.waitingQueue.create).not.toHaveBeenCalled();
   });
 
   it('creates a confirmation-pending appointment when the slot and its waitlist are empty', async () => {
-    const result = await service.create({ customerId, establishmentId, startTime });
+    const result = await service.create({
+      customerId,
+      establishmentId,
+      startTime,
+    });
 
     expect(tx.appointment.create).toHaveBeenCalledWith({
       data: {

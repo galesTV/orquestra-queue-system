@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { BullModule } from '@nestjs/bullmq';
 import { AppointmentsService } from './appointments.service';
 import { AppointmentsController } from './appointments.controller';
@@ -10,6 +11,7 @@ import { AppointmentSlotsService } from './appointment-slots.service';
 
 @Module({
   imports: [
+    AuthModule,
     BullModule.registerQueueAsync({
       name: 'appointment-queue',
       useFactory: () => ({
@@ -22,7 +24,12 @@ import { AppointmentSlotsService } from './appointment-slots.service';
     NotificationsModule,
   ],
   controllers: [AppointmentsController, AppointmentSlotsController],
-  providers: [AppointmentsService, AppointmentsProcessor, QueueGateway, AppointmentSlotsService],
+  providers: [
+    AppointmentsService,
+    AppointmentsProcessor,
+    QueueGateway,
+    AppointmentSlotsService,
+  ],
   exports: [AppointmentsService, QueueGateway, AppointmentSlotsService],
 })
 export class AppointmentsModule {}

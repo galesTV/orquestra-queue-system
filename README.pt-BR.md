@@ -13,6 +13,7 @@ Orquestra é um ecossistema de micro-gerenciamento de agendamentos e filas de es
 ## 🚀 Funcionalidades
 - **Agendamentos Dinâmicos**: Criação e gestão de horários com estados controlados.
 - **Regras de Agendamento**: Bloqueio de horários passados e limites configuráveis de antecedência mínima e máxima.
+- **Autenticação de Estabelecimentos**: Cadastro e login de responsáveis com tokens bearer assinados; o gerenciamento de horários é restrito ao estabelecimento autenticado.
 - **Fila de Espera Automática**: Quando um agendamento é cancelado, um Job é enviado para o Redis.
 - **Processamento Assíncrono**: Um Worker (Processor) processa a fila em segundo plano, promovendo o próximo cliente da lista de espera para o horário vago.
 - **Arquitetura Escalável**: Separação clara entre Producers e Consumers.
@@ -53,6 +54,12 @@ flowchart TD
 - **Resiliência com BullMQ:** O uso do Redis + BullMQ garante que, mesmo sob alta carga, o processamento da fila de espera não bloqueie a thread principal da API, mantendo a resposta ao usuário final rápida.
 - **Consistência de Dados:** Operações críticas no processador (como promover um cliente da fila para um agendamento) são executadas via Prisma Transactions, garantindo que o cliente nunca seja removido da fila sem que o agendamento seja criado com sucesso.
 - **Isolamento de Infra:** O projeto é totalmente "dockerizado", permitindo que o banco de dados e o motor de filas subam com um único comando, garantindo paridade entre ambientes de desenvolvimento e produção.
+
+## Autenticação
+- `POST /auth/register`: cria um estabelecimento e a conta de seu responsável. Corpo: `{ "establishmentName": "Clínica", "email": "responsavel@example.com", "password": "minimo-12-caracteres" }`.
+- `POST /auth/login`: autentica o responsável. Corpo: `{ "email": "responsavel@example.com", "password": "..." }`.
+- Envie o `accessToken` retornado no cabeçalho `Authorization: Bearer <token>` para gerenciar os horários. Os tokens expiram após 8 horas.
+- Configure `AUTH_TOKEN_SECRET` com um segredo aleatório de pelo menos 32 caracteres antes de iniciar a API. Não reutilize um segredo público ou versionado.
 
 ## API Endpoints
 A API expõe os seguintes endpoints para a gestão de agendamentos e filas:

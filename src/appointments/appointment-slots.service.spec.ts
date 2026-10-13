@@ -1,10 +1,37 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { AppointmentSlotsService } from './appointment-slots.service';
 
+type MockTx = {
+  $queryRaw: jest.Mock;
+  appointmentSlot: {
+    create: jest.Mock;
+    findUnique: jest.Mock;
+    findMany: jest.Mock;
+    update: jest.Mock;
+    delete: jest.Mock;
+  };
+  appointment: {
+    findFirst: jest.Mock;
+  };
+  waitingQueue: {
+    findFirst: jest.Mock;
+  };
+};
+
+type MockPrisma = {
+  $transaction: jest.Mock;
+  establishment: {
+    findUnique: jest.Mock;
+  };
+  appointmentSlot: {
+    findMany: jest.Mock;
+  };
+};
+
 describe('AppointmentSlotsService', () => {
   let service: AppointmentSlotsService;
-  let tx: any;
-  let prisma: any;
+  let tx: MockTx;
+  let prisma: MockPrisma;
 
   const establishmentId = 'b2c3d4e5-f6a7-4890-9234-23456789abcd';
   const startTime = new Date('2026-10-15T14:30:00.000Z');
@@ -19,7 +46,9 @@ describe('AppointmentSlotsService', () => {
         create: jest.fn().mockResolvedValue(slot),
         findUnique: jest.fn().mockResolvedValue(slot),
         findMany: jest.fn().mockResolvedValue([slot]),
-        update: jest.fn().mockResolvedValue({ ...slot, startTime: nextStartTime }),
+        update: jest
+          .fn()
+          .mockResolvedValue({ ...slot, startTime: nextStartTime }),
         delete: jest.fn().mockResolvedValue(slot),
       },
       appointment: {
@@ -30,7 +59,9 @@ describe('AppointmentSlotsService', () => {
       },
     };
     prisma = {
-      $transaction: jest.fn((callback: (client: any) => unknown) => callback(tx)),
+      $transaction: jest.fn((callback: (client: any) => unknown) =>
+        callback(tx),
+      ),
       establishment: {
         findUnique: jest.fn().mockResolvedValue(establishment),
       },
@@ -38,7 +69,7 @@ describe('AppointmentSlotsService', () => {
         findMany: jest.fn().mockResolvedValue([slot]),
       },
     };
-    service = new AppointmentSlotsService(prisma as PrismaService);
+    service = new AppointmentSlotsService(prisma as unknown as PrismaService);
   });
 
   it('creates a configured slot for an existing establishment', async () => {
@@ -84,9 +115,14 @@ describe('AppointmentSlotsService', () => {
     });
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
-    expect(tx.appointment.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ establishmentId, startTime }),
-    }));
+    expect(tx.appointment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        where: expect.objectContaining<Record<string, unknown>>({
+          establishmentId,
+          startTime,
+        }),
+      }),
+    );
     expect(tx.waitingQueue.findFirst).toHaveBeenCalledWith({
       where: { establishmentId, startTime },
       select: { id: true },
@@ -102,11 +138,15 @@ describe('AppointmentSlotsService', () => {
     tx.appointmentSlot.findUnique
       .mockResolvedValueOnce(slot)
       .mockResolvedValueOnce(slot);
-    tx.appointment.findFirst.mockResolvedValueOnce({ id: 'active-appointment' });
+    tx.appointment.findFirst.mockResolvedValueOnce({
+      id: 'active-appointment',
+    });
 
     await expect(
       service.update('slot-1', { startTime: nextStartTime.toISOString() }),
-    ).rejects.toThrow('This slot cannot be changed while it has an active appointment.');
+    ).rejects.toThrow(
+      'This slot cannot be changed while it has an active appointment.',
+    );
 
     expect(tx.appointmentSlot.update).not.toHaveBeenCalled();
   });
@@ -119,7 +159,9 @@ describe('AppointmentSlotsService', () => {
 
     await expect(
       service.update('slot-1', { startTime: nextStartTime.toISOString() }),
-    ).rejects.toThrow('This slot cannot be changed while customers are in its waiting queue.');
+    ).rejects.toThrow(
+      'This slot cannot be changed while customers are in its waiting queue.',
+    );
 
     expect(tx.appointmentSlot.update).not.toHaveBeenCalled();
   });
@@ -157,7 +199,9 @@ describe('AppointmentSlotsService', () => {
     tx.appointmentSlot.findUnique
       .mockResolvedValueOnce(slot)
       .mockResolvedValueOnce(slot);
-    tx.appointment.findFirst.mockResolvedValueOnce({ id: 'active-appointment' });
+    tx.appointment.findFirst.mockResolvedValueOnce({
+      id: 'active-appointment',
+    });
 
     await expect(service.setActive('slot-1', false)).rejects.toThrow(
       'This slot cannot be changed while it has an active appointment.',
@@ -193,7 +237,9 @@ describe('AppointmentSlotsService', () => {
     const result = await service.remove('slot-1');
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
-    expect(tx.appointmentSlot.delete).toHaveBeenCalledWith({ where: { id: 'slot-1' } });
+    expect(tx.appointmentSlot.delete).toHaveBeenCalledWith({
+      where: { id: 'slot-1' },
+    });
     expect(result).toEqual(slot);
   });
 
@@ -201,7 +247,9 @@ describe('AppointmentSlotsService', () => {
     tx.appointmentSlot.findUnique
       .mockResolvedValueOnce(slot)
       .mockResolvedValueOnce(slot);
-    tx.appointment.findFirst.mockResolvedValueOnce({ id: 'active-appointment' });
+    tx.appointment.findFirst.mockResolvedValueOnce({
+      id: 'active-appointment',
+    });
 
     await expect(service.remove('slot-1')).rejects.toThrow(
       'This slot cannot be changed while it has an active appointment.',
@@ -225,7 +273,9 @@ describe('AppointmentSlotsService', () => {
     tx.appointmentSlot.findUnique.mockResolvedValueOnce(null);
 
     await expect(
-      service.update('missing-slot', { startTime: nextStartTime.toISOString() }),
+      service.update('missing-slot', {
+        startTime: nextStartTime.toISOString(),
+      }),
     ).rejects.toThrow('Appointment slot not found');
   });
 

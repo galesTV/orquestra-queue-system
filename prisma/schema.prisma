@@ -12,6 +12,16 @@ model Establishment {
   appointments Appointment[]
   waitingQueue WaitingQueue[]
   appointmentSlots AppointmentSlot[]
+  owner          EstablishmentUser?
+}
+
+model EstablishmentUser {
+  id              String        @id @default(uuid())
+  email           String        @unique
+  passwordHash    String
+  establishmentId String        @unique
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt       DateTime      @default(now())
 }
 
 model AppointmentSlot {

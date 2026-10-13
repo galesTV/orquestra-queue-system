@@ -3,7 +3,10 @@ import { BadRequestException } from '@nestjs/common';
 const DEFAULT_MIN_NOTICE_MINUTES = 15;
 const DEFAULT_MAX_ADVANCE_DAYS = 90;
 
-function readPositiveNumber(value: string | undefined, fallback: number): number {
+function readPositiveNumber(
+  value: string | undefined,
+  fallback: number,
+): number {
   if (value === undefined || value.trim() === '') return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
