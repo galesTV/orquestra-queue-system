@@ -29,7 +29,9 @@ describe('AppointmentsProcessor slot promotion', () => {
         }),
       },
       appointmentSlot: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'slot-1', isActive: true }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'slot-1', isActive: true }),
       },
       waitingQueue: {
         findFirst: jest.fn().mockResolvedValue({
@@ -46,12 +48,18 @@ describe('AppointmentsProcessor slot promotion', () => {
     };
 
     prisma = {
-      $transaction: jest.fn((callback: (client: any) => unknown) => callback(tx)),
+      $transaction: jest.fn((callback: (client: any) => unknown) =>
+        callback(tx),
+      ),
       appointment: {},
       waitingQueue: {},
     };
-    notificationQueue = { add: jest.fn().mockResolvedValue({ id: 'notification-1' }) };
-    appointmentQueue = { add: jest.fn().mockResolvedValue({ id: 'expiration-1' }) };
+    notificationQueue = {
+      add: jest.fn().mockResolvedValue({ id: 'notification-1' }),
+    };
+    appointmentQueue = {
+      add: jest.fn().mockResolvedValue({ id: 'expiration-1' }),
+    };
     gateway = { emitQueueUpdate: jest.fn() };
 
     processor = new AppointmentsProcessor(
@@ -100,7 +108,10 @@ describe('AppointmentsProcessor slot promotion', () => {
   });
 
   it('does not promote customers when the slot is inactive', async () => {
-    tx.appointmentSlot.findUnique.mockResolvedValueOnce({ id: 'slot-1', isActive: false });
+    tx.appointmentSlot.findUnique.mockResolvedValueOnce({
+      id: 'slot-1',
+      isActive: false,
+    });
     const job = {
       id: 'cancel-job',
       name: 'process-cancellation',

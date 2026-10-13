@@ -36,7 +36,9 @@ export class AppointmentsProcessor extends WorkerHost {
     private readonly queueGateway: QueueGateway,
   ) {
     super();
-    this.logger.log('AppointmentsProcessor initialized and ready to process jobs.');
+    this.logger.log(
+      'AppointmentsProcessor initialized and ready to process jobs.',
+    );
   }
 
   async process(job: Job<any, any, string>): Promise<void> {
@@ -54,9 +56,13 @@ export class AppointmentsProcessor extends WorkerHost {
     }
   }
 
-  private async handleCancellation(job: Job<CancellationJobData>): Promise<void> {
+  private async handleCancellation(
+    job: Job<CancellationJobData>,
+  ): Promise<void> {
     const { establishmentId } = job.data;
-    let startTime = job.data.startTime ? new Date(job.data.startTime) : undefined;
+    let startTime = job.data.startTime
+      ? new Date(job.data.startTime)
+      : undefined;
 
     if (!startTime && job.data.appointmentId) {
       const appointment = await this.prisma.appointment.findUnique({
@@ -83,7 +89,9 @@ export class AppointmentsProcessor extends WorkerHost {
         },
       });
       if (!configuredSlot || !configuredSlot.isActive) {
-        this.logger.log('Slot is missing or inactive; skipping waitlist promotion.');
+        this.logger.log(
+          'Slot is missing or inactive; skipping waitlist promotion.',
+        );
         return null;
       }
 
@@ -142,7 +150,9 @@ export class AppointmentsProcessor extends WorkerHost {
     });
 
     if (!promoted) {
-      this.logger.log('Slot is occupied or the waitlist is empty; no promotion needed.');
+      this.logger.log(
+        'Slot is occupied or the waitlist is empty; no promotion needed.',
+      );
       return;
     }
 
@@ -163,13 +173,18 @@ export class AppointmentsProcessor extends WorkerHost {
       status: 'PROMOTED',
       appointmentId: promoted.appointment.id,
       startTime: slotStartTime,
-      message: 'You have been promoted to the selected time slot. Please confirm within 10 minutes.',
+      message:
+        'You have been promoted to the selected time slot. Please confirm within 10 minutes.',
       establishment: { id: establishmentId },
     });
 
     await this.notificationQueue.add(
       'send-promotion-alert',
-      { customerId: promoted.customerId, establishmentId, startTime: slotStartTime },
+      {
+        customerId: promoted.customerId,
+        establishmentId,
+        startTime: slotStartTime,
+      },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 2000 },
@@ -182,7 +197,9 @@ export class AppointmentsProcessor extends WorkerHost {
     // Older delayed jobs do not identify a specific appointment/slot. Ignoring
     // them is safer than allowing a stale job to cancel a newer booking.
     if (!job.data.appointmentId || !job.data.startTime) {
-      this.logger.warn('Ignoring legacy expiration job without appointmentId and startTime.');
+      this.logger.warn(
+        'Ignoring legacy expiration job without appointmentId and startTime.',
+      );
       return;
     }
 
@@ -197,16 +214,23 @@ export class AppointmentsProcessor extends WorkerHost {
 
     // A delayed job from a previous schedule must not expire a rescheduled booking.
     if (
-      (job.data.startTime && appointment.startTime.toISOString() !== job.data.startTime) ||
+      (job.data.startTime &&
+        appointment.startTime.toISOString() !== job.data.startTime) ||
       appointment.establishmentId !== establishmentId ||
       appointment.customerId !== customerId
     ) {
-      this.logger.log('Expiration job does not match the appointment current slot; skipping.');
+      this.logger.log(
+        'Expiration job does not match the appointment current slot; skipping.',
+      );
       return;
     }
 
     const canceled = await this.prisma.$transaction(async (tx) => {
-      await lockAppointmentSlot(tx, appointment.establishmentId, appointment.startTime);
+      await lockAppointmentSlot(
+        tx,
+        appointment.establishmentId,
+        appointment.startTime,
+      );
 
       const current = await tx.appointment.findUnique({
         where: { id: appointment.id },
@@ -227,7 +251,9 @@ export class AppointmentsProcessor extends WorkerHost {
     });
 
     if (!canceled) {
-      this.logger.log('Appointment was confirmed or changed before expiration; skipping.');
+      this.logger.log(
+        'Appointment was confirmed or changed before expiration; skipping.',
+      );
       return;
     }
 
@@ -235,7 +261,8 @@ export class AppointmentsProcessor extends WorkerHost {
       customerId,
       inQueue: false,
       status: 'CANCELED',
-      message: 'Your appointment was canceled because confirmation was not received in time.',
+      message:
+        'Your appointment was canceled because confirmation was not received in time.',
     });
 
     await this.appointmentQueue.add('process-cancellation', {

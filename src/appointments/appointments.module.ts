@@ -24,7 +24,12 @@ import { AppointmentSlotsService } from './appointment-slots.service';
     NotificationsModule,
   ],
   controllers: [AppointmentsController, AppointmentSlotsController],
-  providers: [AppointmentsService, AppointmentsProcessor, QueueGateway, AppointmentSlotsService],
+  providers: [
+    AppointmentsService,
+    AppointmentsProcessor,
+    QueueGateway,
+    AppointmentSlotsService,
+  ],
   exports: [AppointmentsService, QueueGateway, AppointmentSlotsService],
 })
 export class AppointmentsModule {}

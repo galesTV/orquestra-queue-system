@@ -1,5 +1,14 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
+
+type MockTx = {
+  establishment: {
+    create: jest.Mock;
+  };
+  establishmentUser: {
+    create: jest.Mock;
+  };
+};
 
 describe('AuthService', () => {
   const prisma = {
@@ -24,17 +33,22 @@ describe('AuthService', () => {
   });
 
   it('issues a token after successful registration', async () => {
-    prisma.$transaction.mockImplementation(async (callback) =>
-      callback({
-        establishment: { create: jest.fn().mockResolvedValue({ id: 'est-1', name: 'Clinic' }) },
-        establishmentUser: {
-          create: jest.fn().mockResolvedValue({
-            id: 'user-1',
-            email: 'owner@example.com',
-            establishmentId: 'est-1',
-          }),
-        },
-      }),
+    prisma.$transaction.mockImplementation(
+      (callback: (tx: MockTx) => unknown) =>
+        callback({
+          establishment: {
+            create: jest
+              .fn()
+              .mockResolvedValue({ id: 'est-1', name: 'Clinic' }),
+          },
+          establishmentUser: {
+            create: jest.fn().mockResolvedValue({
+              id: 'user-1',
+              email: 'owner@example.com',
+              establishmentId: 'est-1',
+            }),
+          },
+        }),
     );
 
     const result = await service.register({
@@ -53,13 +67,17 @@ describe('AuthService', () => {
 
   it('rejects invalid login credentials', async () => {
     prisma.establishmentUser.findUnique.mockResolvedValue(null);
-    await expect(service.login({
-      email: 'missing@example.com',
-      password: 'strong-password-123',
-    })).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
+      service.login({
+        email: 'missing@example.com',
+        password: 'strong-password-123',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('rejects malformed bearer token payloads', () => {
-    expect(() => service.verifyToken('invalid.token')).toThrow(UnauthorizedException);
+    expect(() => service.verifyToken('invalid.token')).toThrow(
+      UnauthorizedException,
+    );
   });
 });

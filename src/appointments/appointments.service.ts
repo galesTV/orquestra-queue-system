@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
@@ -95,7 +94,12 @@ export class AppointmentsService {
         const nextPosition = (lastInQueue?.position ?? 0) + 1;
 
         const queueEntry = await tx.waitingQueue.create({
-          data: { customerId, establishmentId, startTime, position: nextPosition },
+          data: {
+            customerId,
+            establishmentId,
+            startTime,
+            position: nextPosition,
+          },
         });
 
         return {
@@ -184,7 +188,9 @@ export class AppointmentsService {
   }
 
   async findOne(id: string) {
-    const appointment = await this.prisma.appointment.findUnique({ where: { id } });
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id },
+    });
     if (!appointment) throw new NotFoundException('Appointment not found');
     return appointment;
   }
@@ -206,7 +212,10 @@ export class AppointmentsService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const locks = [
-        { establishmentId: current.establishmentId, startTime: current.startTime },
+        {
+          establishmentId: current.establishmentId,
+          startTime: current.startTime,
+        },
         { establishmentId: targetEstablishmentId, startTime: targetStartTime },
       ].sort((a, b) => {
         const left = `${a.establishmentId}:${a.startTime.toISOString()}`;
@@ -224,7 +233,9 @@ export class AppointmentsService {
         lockedCurrent.establishmentId !== current.establishmentId ||
         lockedCurrent.startTime.getTime() !== current.startTime.getTime()
       ) {
-        throw new ConflictException('Appointment changed concurrently. Reload it and retry.');
+        throw new ConflictException(
+          'Appointment changed concurrently. Reload it and retry.',
+        );
       }
 
       const targetSlotChanged =
@@ -262,7 +273,10 @@ export class AppointmentsService {
         },
       });
       const queuedAhead = await tx.waitingQueue.findFirst({
-        where: { establishmentId: targetEstablishmentId, startTime: targetStartTime },
+        where: {
+          establishmentId: targetEstablishmentId,
+          startTime: targetStartTime,
+        },
       });
       if (conflict || (targetSlotChanged && queuedAhead)) {
         throw new ConflictException(
@@ -274,7 +288,9 @@ export class AppointmentsService {
         where: { id },
         data: {
           ...(updateAppointmentDto.startTime && { startTime: targetStartTime }),
-          ...(updateAppointmentDto.customerId && { customerId: updateAppointmentDto.customerId }),
+          ...(updateAppointmentDto.customerId && {
+            customerId: updateAppointmentDto.customerId,
+          }),
           ...(updateAppointmentDto.establishmentId && {
             establishmentId: updateAppointmentDto.establishmentId,
           }),
@@ -296,11 +312,17 @@ export class AppointmentsService {
   }
 
   async cancel(id: string) {
-    const appointment = await this.prisma.appointment.findUnique({ where: { id } });
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id },
+    });
     if (!appointment) throw new NotFoundException('Appointment not found');
 
     const updatedAppointment = await this.prisma.$transaction(async (tx) => {
-      await lockAppointmentSlot(tx, appointment.establishmentId, appointment.startTime);
+      await lockAppointmentSlot(
+        tx,
+        appointment.establishmentId,
+        appointment.startTime,
+      );
 
       const current = await tx.appointment.findUnique({ where: { id } });
       if (!current) throw new NotFoundException('Appointment not found');
@@ -308,7 +330,9 @@ export class AppointmentsService {
         current.establishmentId !== appointment.establishmentId ||
         current.startTime.getTime() !== appointment.startTime.getTime()
       ) {
-        throw new ConflictException('Appointment changed concurrently. Retry cancellation.');
+        throw new ConflictException(
+          'Appointment changed concurrently. Retry cancellation.',
+        );
       }
 
       if (current.status === 'CANCELED') return current;
@@ -335,18 +359,28 @@ export class AppointmentsService {
     if (!appointment) throw new NotFoundException('Appointment not found');
 
     return this.prisma.$transaction(async (tx) => {
-      await lockAppointmentSlot(tx, appointment.establishmentId, appointment.startTime);
+      await lockAppointmentSlot(
+        tx,
+        appointment.establishmentId,
+        appointment.startTime,
+      );
 
-      const current = await tx.appointment.findUnique({ where: { id: appointmentId } });
+      const current = await tx.appointment.findUnique({
+        where: { id: appointmentId },
+      });
       if (!current) throw new NotFoundException('Appointment not found');
       if (
         current.establishmentId !== appointment.establishmentId ||
         current.startTime.getTime() !== appointment.startTime.getTime()
       ) {
-        throw new ConflictException('Appointment changed concurrently. Reload it and retry.');
+        throw new ConflictException(
+          'Appointment changed concurrently. Reload it and retry.',
+        );
       }
       if (current.status !== 'WAITING_CONFIRMATION') {
-        throw new BadRequestException('Appointment is not waiting for confirmation');
+        throw new BadRequestException(
+          'Appointment is not waiting for confirmation',
+        );
       }
 
       return tx.appointment.update({
@@ -409,7 +443,8 @@ export class AppointmentsService {
         customerId,
         inQueue: false,
         status: 'CANCELED',
-        message: 'Your appointment was canceled and the time slot was released.',
+        message:
+          'Your appointment was canceled and the time slot was released.',
         establishment: {
           id: canceledAppointment.establishmentId,
           name: canceledAppointment.establishment.name,
@@ -417,11 +452,15 @@ export class AppointmentsService {
       };
     }
 
-    throw new NotFoundException('Customer not found in any active waiting queue.');
+    throw new NotFoundException(
+      'Customer not found in any active waiting queue.',
+    );
   }
 
   async getQueueSize(establishmentId: string) {
-    const size = await this.prisma.waitingQueue.count({ where: { establishmentId } });
+    const size = await this.prisma.waitingQueue.count({
+      where: { establishmentId },
+    });
     const sampleEntry = await this.prisma.waitingQueue.findFirst({
       where: { establishmentId },
       include: { establishment: true },

@@ -9,13 +9,19 @@ import { CreateAppointmentSlotDto } from './dto/create-appointment-slot.dto';
 import { UpdateAppointmentSlotDto } from './dto/update-appointment-slot.dto';
 import { lockAppointmentSlot } from './appointment-slot-lock';
 
-const ACTIVE_APPOINTMENT_STATUSES = ['SCHEDULED', 'WAITING_CONFIRMATION'] as const;
+const ACTIVE_APPOINTMENT_STATUSES = [
+  'SCHEDULED',
+  'WAITING_CONFIRMATION',
+] as const;
 
 @Injectable()
 export class AppointmentSlotsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async assertBelongsToEstablishment(id: string, establishmentId: string): Promise<void> {
+  async assertBelongsToEstablishment(
+    id: string,
+    establishmentId: string,
+  ): Promise<void> {
     const slot = await this.prisma.appointmentSlot.findUnique({
       where: { id },
       select: { establishmentId: true },
@@ -46,7 +52,9 @@ export class AppointmentSlotsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('This appointment slot is already configured.');
+        throw new ConflictException(
+          'This appointment slot is already configured.',
+        );
       }
       throw error;
     }
@@ -74,8 +82,14 @@ export class AppointmentSlotsService {
         if (!initial) throw new NotFoundException('Appointment slot not found');
 
         const lockTargets = [
-          { establishmentId: initial.establishmentId, startTime: initial.startTime },
-          { establishmentId: initial.establishmentId, startTime: requestedStartTime },
+          {
+            establishmentId: initial.establishmentId,
+            startTime: initial.startTime,
+          },
+          {
+            establishmentId: initial.establishmentId,
+            startTime: requestedStartTime,
+          },
         ].sort((a, b) => {
           const left = `${a.establishmentId}:${a.startTime.toISOString()}`;
           const right = `${b.establishmentId}:${b.startTime.toISOString()}`;
@@ -83,7 +97,11 @@ export class AppointmentSlotsService {
         });
 
         for (const target of lockTargets) {
-          await lockAppointmentSlot(tx, target.establishmentId, target.startTime);
+          await lockAppointmentSlot(
+            tx,
+            target.establishmentId,
+            target.startTime,
+          );
         }
 
         const current = await tx.appointmentSlot.findUnique({ where: { id } });
@@ -180,10 +198,16 @@ export class AppointmentSlotsService {
         current.establishmentId !== initial.establishmentId ||
         current.startTime.getTime() !== initial.startTime.getTime()
       ) {
-        throw new ConflictException('Appointment slot changed concurrently. Reload and retry.');
+        throw new ConflictException(
+          'Appointment slot changed concurrently. Reload and retry.',
+        );
       }
 
-      await this.assertSlotCanBeChanged(tx, current.establishmentId, current.startTime);
+      await this.assertSlotCanBeChanged(
+        tx,
+        current.establishmentId,
+        current.startTime,
+      );
 
       return tx.appointmentSlot.delete({ where: { id } });
     });
@@ -229,7 +253,9 @@ export class AppointmentSlotsService {
       select: { id: true },
     });
     if (existingSlot) {
-      throw new ConflictException('Another slot is already configured for this time.');
+      throw new ConflictException(
+        'Another slot is already configured for this time.',
+      );
     }
 
     const activeAppointment = await tx.appointment.findFirst({
@@ -241,7 +267,9 @@ export class AppointmentSlotsService {
       select: { id: true },
     });
     if (activeAppointment) {
-      throw new ConflictException('The requested time already has an active appointment.');
+      throw new ConflictException(
+        'The requested time already has an active appointment.',
+      );
     }
 
     const waitingEntry = await tx.waitingQueue.findFirst({
@@ -249,7 +277,9 @@ export class AppointmentSlotsService {
       select: { id: true },
     });
     if (waitingEntry) {
-      throw new ConflictException('The requested time already has a waiting queue.');
+      throw new ConflictException(
+        'The requested time already has a waiting queue.',
+      );
     }
   }
 }

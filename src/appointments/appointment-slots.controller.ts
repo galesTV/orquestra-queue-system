@@ -10,11 +10,12 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
-import { AuthenticatedUser, CurrentUser } from '../auth/current-user.decorator';
 import { CreateAppointmentSlotDto } from './dto/create-appointment-slot.dto';
 import { UpdateAppointmentSlotActivationDto } from './dto/update-appointment-slot-activation.dto';
 import { UpdateAppointmentSlotDto } from './dto/update-appointment-slot.dto';
 import { AppointmentSlotsService } from './appointment-slots.service';
+import { CurrentUser } from 'src/auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/current-user.decorator';
 
 @Controller('appointment-slots')
 @UseGuards(AuthGuard)
@@ -45,7 +46,10 @@ export class AppointmentSlotsController {
     @Body() dto: UpdateAppointmentSlotDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    await this.slotsService.assertBelongsToEstablishment(id, user.establishmentId);
+    await this.slotsService.assertBelongsToEstablishment(
+      id,
+      user.establishmentId,
+    );
     return this.slotsService.update(id, dto);
   }
 
@@ -55,7 +59,10 @@ export class AppointmentSlotsController {
     @Body() dto: UpdateAppointmentSlotActivationDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    await this.slotsService.assertBelongsToEstablishment(id, user.establishmentId);
+    await this.slotsService.assertBelongsToEstablishment(
+      id,
+      user.establishmentId,
+    );
     return this.slotsService.setActive(id, dto.isActive);
   }
 
@@ -64,7 +71,10 @@ export class AppointmentSlotsController {
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    await this.slotsService.assertBelongsToEstablishment(id, user.establishmentId);
+    await this.slotsService.assertBelongsToEstablishment(
+      id,
+      user.establishmentId,
+    );
     return this.slotsService.remove(id);
   }
 
@@ -73,7 +83,9 @@ export class AppointmentSlotsController {
     user: AuthenticatedUser,
   ): void {
     if (requestedId !== user.establishmentId) {
-      throw new ForbiddenException('You can only manage your own establishment.');
+      throw new ForbiddenException(
+        'You can only manage your own establishment.',
+      );
     }
   }
 }

@@ -3,7 +3,12 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import {
+  createHmac,
+  randomBytes,
+  scryptSync,
+  timingSafeEqual,
+} from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -35,13 +40,18 @@ export class AuthService {
           select: { id: true, email: true, establishmentId: true },
         });
       });
-      return { ...owner, accessToken: this.createToken(owner.id, owner.establishmentId) };
+      return {
+        ...owner,
+        accessToken: this.createToken(owner.id, owner.establishmentId),
+      };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('An account with this email already exists.');
+        throw new ConflictException(
+          'An account with this email already exists.',
+        );
       }
       throw error;
     }
@@ -125,6 +135,8 @@ export class AuthService {
     if (!salt || !expectedHex || extra) return false;
     const actual = scryptSync(password, salt, 64);
     const expected = Buffer.from(expectedHex, 'hex');
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
+    return (
+      actual.length === expected.length && timingSafeEqual(actual, expected)
+    );
   }
 }
