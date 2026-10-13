@@ -14,7 +14,7 @@ import { CreateAppointmentSlotDto } from './dto/create-appointment-slot.dto';
 import { UpdateAppointmentSlotActivationDto } from './dto/update-appointment-slot-activation.dto';
 import { UpdateAppointmentSlotDto } from './dto/update-appointment-slot.dto';
 import { AppointmentSlotsService } from './appointment-slots.service';
-import { CurrentUser } from 'src/auth/current-user.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/current-user.decorator';
 
 @Controller('appointment-slots')
